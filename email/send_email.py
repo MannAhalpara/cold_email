@@ -1,8 +1,10 @@
 import imaplib
 import smtplib
 import time
+from pathlib import Path
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 
 
 def send_email(
@@ -11,6 +13,7 @@ def send_email(
     receiver_email: str,
     subject: str,
     body: str,
+    attachment_path: str = None,
 ):
     """Send an email directly via Gmail SMTP."""
     message = MIMEMultipart()
@@ -22,12 +25,20 @@ def send_email(
         MIMEText(body, "plain", "utf-8")
     )
 
+    if attachment_path:
+        att_file = Path(attachment_path)
+        if att_file.exists():
+            with open(att_file, "rb") as f:
+                part = MIMEApplication(f.read(), Name=att_file.name)
+            part['Content-Disposition'] = f'attachment; filename="{att_file.name}"'
+            message.attach(part)
+
     with smtplib.SMTP("smtp.gmail.com", 587) as server:
         server.starttls()
         server.login(sender_email, app_password)
         server.send_message(message)
 
-    print(f"✅ Email directly sent to {receiver_email}")
+    print(f"[SUCCESS] Email directly sent to {receiver_email}")
 
 
 def save_draft_gmail(
@@ -36,8 +47,9 @@ def save_draft_gmail(
     receiver_email: str,
     subject: str,
     body: str,
+    attachment_path: str = None,
 ):
-    """Save an email as a draft directly inside Gmail via IMAP."""
+    """Save an email as a draft directly inside Gmail via IMAP with optional attachment."""
     message = MIMEMultipart()
     message["From"] = sender_email
     message["To"] = receiver_email
@@ -46,6 +58,14 @@ def save_draft_gmail(
     message.attach(
         MIMEText(body, "plain", "utf-8")
     )
+
+    if attachment_path:
+        att_file = Path(attachment_path)
+        if att_file.exists():
+            with open(att_file, "rb") as f:
+                part = MIMEApplication(f.read(), Name=att_file.name)
+            part['Content-Disposition'] = f'attachment; filename="{att_file.name}"'
+            message.attach(part)
 
     now = imaplib.Time2Internaldate(time.time())
 
@@ -60,4 +80,4 @@ def save_draft_gmail(
             if res != "OK":
                 raise RuntimeError(f"Failed to save draft in Gmail IMAP: {data}")
 
-    print(f"✅ Email draft successfully saved inside Gmail for {receiver_email}")
+    print(f"[SUCCESS] Email draft successfully saved inside Gmail for {receiver_email}")
