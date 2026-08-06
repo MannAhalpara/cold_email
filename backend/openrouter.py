@@ -46,7 +46,7 @@ def generate_personalized_paragraph(
         web_text = web_text[:6000] + "\n...[truncated for length]"
 
     prompt = f"""
-You are an expert cold email assistant. Your task is to write EXACTLY ONE focused, highly personalized academic research alignment paragraph (70 to 120 words).
+You are an expert cold email assistant. Your task is to write ONLY 2 to 3 concise, impactful lines about the professor's research alignment (maximum 50 to 75 words).
 
 CANDIDATE (SENDER):
 Name: Mann Ahalpara
@@ -65,10 +65,11 @@ SCRAPED WEBPAGES & RESEARCH DATA:
 {web_text if web_text else "No additional webpage text available."}
 
 INSTRUCTIONS:
-1. Write EXACTLY ONE concise, compelling paragraph (70 to 120 words).
-2. Connect Mann Ahalpara's technical skills, project background, or research experience directly to {prof_name}'s specific research focus, lab work, or published papers.
-3. DO NOT include greetings (like 'Dear Professor'), subject lines, introductions, or sign-offs (like 'Sincerely').
-4. Return ONLY the single paragraph. No extra commentary or quotes.
+1. Write ONLY 2 to 3 lines (maximum 50 to 75 words).
+2. Focus specifically on 1-2 of Professor {prof_name}'s most RECENT or HIGHLY EFFECTIVE/IMPACTFUL research findings, lab projects, or publications from the scraped data or research area.
+3. Connect the candidate's background directly to these specific recent/impactful research directions.
+4. DO NOT include greetings (like 'Dear Professor'), subject lines, introductions, or sign-offs (like 'Sincerely').
+5. Return ONLY the 2-3 lines text. No extra commentary or quotes.
 """
 
     paragraph_result = ""

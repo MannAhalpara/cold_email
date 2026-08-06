@@ -1,0 +1,1648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cold Email Platform</title>
+  <meta name="description" content="Unified professor database manager and personalized cold email automation platform.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <style>
+    /* ─── Design Tokens ─────────────────────────────────────────────────── */
+    :root {
+      --bg: #F6F3EB;
+      --card: #FFFFFF;
+      --border: #121212;
+      --border-sub: #E2DBD0;
+      --lilac: #B376E6;
+      --lilac-dk: #9A54D6;
+      --lilac-lt: rgba(179,118,230,0.15);
+      --text: #121212;
+      --muted: #525252;
+      --dim: #737373;
+      --danger: #EF4444;
+      --success: #22c55e;
+      --r-pill: 999px;
+      --r-card: 16px;
+      --r-sm: 8px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; }
+
+    /* ─── Page System ──────────────────────────────────────────────────── */
+    .page { display: none; animation: fadeUp .25s ease; }
+    .page.active { display: block; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ─── App Container ────────────────────────────────────────────────── */
+    .app { max-width: 1280px; margin: 0 auto; padding: 32px 24px 80px; }
+
+    /* ─── Back Button ──────────────────────────────────────────────────── */
+    .back-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--card); border: 1.5px solid var(--border);
+      border-radius: var(--r-pill); padding: 8px 18px;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+      box-shadow: 2px 2px 0 var(--border); transition: all .2s;
+      text-decoration: none; color: var(--text);
+    }
+    .back-btn:hover { box-shadow: 3px 3px 0 var(--lilac); transform: translateY(-1px); }
+
+    /* ─── Section Header ───────────────────────────────────────────────── */
+    .section-header {
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 32px; padding-bottom: 16px;
+      border-bottom: 1.5px solid var(--border-sub);
+    }
+    .section-title { font-family: 'Outfit', sans-serif; font-size: 32px; font-weight: 800; letter-spacing: -.5px; }
+    .header-actions { margin-left: auto; display: flex; gap: 10px; }
+
+    /* ─── LANDING PAGE ─────────────────────────────────────────────────── */
+    #page-landing { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 24px 80px; }
+    #page-landing.page { display: none; }
+    #page-landing.page.active { display: flex; }
+
+    .landing-hero { text-align: center; margin-bottom: 56px; max-width: 850px; }
+    .landing-badge {
+      display: inline-block; background: var(--card);
+      border: 1.5px solid var(--border); border-radius: var(--r-pill);
+      padding: 8px 22px; font-size: 14px; font-weight: 700;
+      box-shadow: 3px 3px 0 var(--lilac); margin-bottom: 24px;
+      letter-spacing: .3px;
+    }
+    .landing-brand {
+      font-family: 'Outfit', sans-serif; font-size: clamp(54px, 9vw, 96px);
+      font-weight: 900; letter-spacing: -3px; line-height: 1.02;
+      background: linear-gradient(135deg, #7E22CE 0%, #A855F7 50%, #C084FC 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      margin-bottom: 20px;
+    }
+    .landing-sub { font-size: 20px; color: var(--muted); font-weight: 500; line-height: 1.6; max-width: 580px; margin: 0 auto; }
+
+    .landing-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 800px; width: 100%; }
+    @media (max-width: 650px) { .landing-cards { grid-template-columns: 1fr; } }
+
+    .landing-card {
+      background: var(--card); border: 2px solid var(--border);
+      border-radius: 24px; padding: 44px 36px;
+      cursor: pointer; transition: all .25s;
+      box-shadow: 6px 6px 0 var(--border);
+      position: relative; overflow: hidden;
+    }
+    .landing-card::after {
+      content: ''; position: absolute; inset: 0;
+      background: var(--lilac-lt); opacity: 0; transition: opacity .25s;
+    }
+    .landing-card:hover { box-shadow: 8px 8px 0 var(--lilac); transform: translateY(-4px); }
+    .landing-card:hover::after { opacity: 1; }
+
+    .lcard-title { font-family: 'Outfit', sans-serif; font-size: 28px; font-weight: 800; margin-bottom: 12px; }
+    .lcard-desc { font-size: 15px; color: var(--muted); line-height: 1.6; }
+    .lcard-arrow {
+      position: absolute; bottom: 28px; right: 28px;
+      width: 38px; height: 38px; background: var(--card);
+      border: 1.5px solid var(--border); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; box-shadow: 2px 2px 0 var(--lilac);
+      transition: all .2s;
+    }
+    .landing-card:hover .lcard-arrow { background: var(--lilac); color: white; box-shadow: none; }
+
+    /* ─── KPI Dashboard ────────────────────────────────────────────────── */
+    .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+    @media (max-width: 900px) { .dashboard-grid { grid-template-columns: 1fr; } }
+
+    .kpi-stack { display: flex; flex-direction: column; gap: 16px; }
+    .kpi-main, .kpi-sub {
+      background: var(--card); border: 1.5px solid var(--border);
+      border-radius: var(--r-card); box-shadow: 4px 4px 0 var(--border);
+      transition: all .2s;
+    }
+    .kpi-main { padding: 24px; }
+    .kpi-main:hover { box-shadow: 5px 5px 0 var(--lilac); }
+    .kpi-sub { padding: 20px; }
+    .kpi-sub:hover { box-shadow: 4px 4px 0 var(--lilac); }
+    .kpi-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .kpi-val-lg { font-family: 'Outfit', sans-serif; font-size: 42px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+    .kpi-val-md { font-family: 'Outfit', sans-serif; font-size: 32px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+    .kpi-label { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+
+    .graph-card {
+      background: var(--card); border: 1.5px solid var(--border);
+      border-radius: var(--r-card); padding: 24px;
+      box-shadow: 4px 4px 0 var(--border);
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .graph-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .graph-title { font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; }
+    .today-badge {
+      background: var(--card); border: 1.5px solid var(--border);
+      box-shadow: 2px 2px 0 var(--lilac); padding: 5px 14px;
+      border-radius: var(--r-pill); font-size: 12px; font-weight: 700;
+    }
+    .svg-graph-wrap { width: 100%; height: 150px; position: relative; }
+    .graph-labels { display: flex; justify-content: space-between; margin-top: 12px; padding: 0 8px; }
+    .day-lbl { font-size: 12px; color: var(--muted); font-weight: 600; text-align: center; width: 32px; }
+    .day-lbl.today { color: var(--text); font-weight: 800; background: var(--lilac-lt); border-radius: 4px; padding: 2px 0; }
+
+    /* ─── Nav Tabs ─────────────────────────────────────────────────────── */
+    .nav-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; border-bottom: 1.5px solid var(--border-sub); padding-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+    .tab-group { display: flex; gap: 10px; flex-wrap: wrap; }
+    .tab-btn {
+      background: var(--card); border: 1.5px solid var(--border);
+      color: var(--text); padding: 10px 22px; border-radius: var(--r-pill);
+      font-size: 14px; font-weight: 700; cursor: pointer;
+      box-shadow: 2px 2px 0 var(--border); transition: all .2s;
+    }
+    .tab-btn:hover { box-shadow: 3px 3px 0 var(--lilac); transform: translateY(-1px); }
+    .tab-btn.active { box-shadow: 3px 3px 0 var(--lilac); }
+
+    /* ─── Content Sections ─────────────────────────────────────────────── */
+    .content-section { display: none; animation: fadeUp .25s ease; }
+    .content-section.active { display: block; }
+
+    /* ─── Cards Grid ───────────────────────────────────────────────────── */
+    .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+
+    .prof-card {
+      background: var(--card); border: 1.5px solid var(--border);
+      border-radius: var(--r-card); padding: 24px;
+      box-shadow: 3px 3px 0 var(--border); transition: all .2s;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .prof-card:hover { box-shadow: 5px 5px 0 var(--lilac); transform: translateY(-2px); }
+    .prof-name { font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .prof-meta { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; margin-bottom: 12px; }
+    .badge-tag {
+      display: inline-block; background: var(--lilac-lt);
+      border: 1.5px solid var(--border); font-size: 12px; font-weight: 700;
+      padding: 4px 12px; border-radius: var(--r-pill); margin-bottom: 10px;
+      box-shadow: 2px 2px 0 var(--lilac);
+    }
+    .links-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1.5px solid var(--border-sub); }
+    .link-chip {
+      font-size: 12px; color: var(--text); text-decoration: none;
+      background: var(--card); border: 1px solid var(--border);
+      box-shadow: 2px 2px 0 var(--lilac); padding: 4px 12px;
+      border-radius: var(--r-pill); font-weight: 600; transition: all .2s;
+    }
+    .link-chip:hover { background: var(--lilac-lt); box-shadow: 3px 3px 0 var(--border); }
+    .card-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1.5px solid var(--border-sub); }
+
+    /* ─── Glass Panel / Form ───────────────────────────────────────────── */
+    .glass-panel { background: var(--card); border: 1.5px solid var(--border); border-radius: var(--r-card); padding: 32px; box-shadow: 4px 4px 0 var(--border); }
+    .form-title { font-family: 'Outfit', sans-serif; font-size: 24px; font-weight: 800; margin-bottom: 24px; }
+    .form-group-title {
+      font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px;
+      margin: 24px 0 16px; display: flex; align-items: center; gap: 8px;
+    }
+    .form-group-title::after { content: ''; flex: 1; height: 1.5px; background: var(--border-sub); }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+    .field-wrap { display: flex; flex-direction: column; gap: 6px; }
+    .field-label { font-size: 13px; font-weight: 600; }
+    .field-label .req { color: var(--danger); margin-left: 2px; }
+    .field-label .opt { color: var(--dim); font-size: 12px; margin-left: 4px; }
+    .field-input {
+      background: var(--card); border: 1.5px solid var(--border);
+      border-radius: var(--r-sm); padding: 11px 14px;
+      color: var(--text); font-size: 14px; font-family: inherit; outline: none; transition: all .2s;
+    }
+    .field-input:focus { box-shadow: 3px 3px 0 var(--lilac); }
+    .field-textarea { resize: vertical; min-height: 120px; }
+
+    /* ─── Buttons ──────────────────────────────────────────────────────── */
+    .btn {
+      padding: 11px 26px; border-radius: var(--r-pill); font-size: 14px; font-weight: 700;
+      cursor: pointer; border: 1.5px solid var(--border); transition: all .2s;
+      display: inline-flex; align-items: center; gap: 8px; font-family: inherit;
+    }
+    .btn-primary { background: var(--card); color: var(--text); box-shadow: 3px 3px 0 var(--lilac); }
+    .btn-primary:hover { box-shadow: 4px 4px 0 var(--lilac-dk); transform: translateY(-1px); }
+    .btn-secondary { background: var(--card); color: var(--text); box-shadow: 3px 3px 0 var(--border); }
+    .btn-secondary:hover { box-shadow: 4px 4px 0 var(--lilac); transform: translateY(-1px); }
+    .btn-danger { background: var(--card); color: var(--danger); border-color: var(--danger); box-shadow: 3px 3px 0 var(--danger); }
+    .btn-danger:hover { background: #FEE2E2; transform: translateY(-1px); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; transform: none !important; }
+    .form-actions { margin-top: 28px; display: flex; justify-content: flex-end; gap: 12px; }
+
+    /* ─── Action Buttons (card-level) ──────────────────────────────────── */
+    .action-btn {
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--text); padding: 6px 14px; font-size: 12px; font-weight: 700;
+      border-radius: var(--r-pill); cursor: pointer;
+      box-shadow: 2px 2px 0 var(--border); transition: all .2s; font-family: inherit;
+    }
+    .action-btn:hover { box-shadow: 3px 3px 0 var(--lilac); }
+    .action-btn.delete:hover { background: #FEE2E2; color: var(--danger); box-shadow: 3px 3px 0 var(--danger); }
+    .action-btn.send-email-btn { box-shadow: 2px 2px 0 var(--lilac); background: var(--lilac-lt); }
+    .action-btn.send-email-btn:hover { background: var(--lilac); color: white; }
+    .action-btn.emailed { background: #dcfce7; color: #15803d; border-color: #15803d; box-shadow: 2px 2px 0 #15803d; cursor: default; }
+
+    /* ─── Search Bar ───────────────────────────────────────────────────── */
+    .dir-controls { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+    .search-box { flex: 1; min-width: 260px; }
+    .search-input {
+      width: 100%; background: var(--card); border: 1.5px solid var(--border);
+      border-radius: var(--r-pill); padding: 12px 20px; color: var(--text);
+      font-size: 14px; outline: none; box-shadow: 2px 2px 0 var(--border); transition: all .2s;
+      font-family: inherit;
+    }
+    .search-input:focus { box-shadow: 3px 3px 0 var(--lilac); }
+
+    /* ─── Toast ────────────────────────────────────────────────────────── */
+    #toast-container { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; z-index: 9999; }
+    .toast {
+      background: var(--card); border: 1.5px solid var(--border);
+      box-shadow: 4px 4px 0 var(--lilac); padding: 14px 20px;
+      border-radius: var(--r-card); font-size: 14px; font-weight: 600;
+      animation: slideIn .3s ease-out; min-width: 260px; max-width: 380px;
+    }
+    .toast.success { border-left: 5px solid var(--success); }
+    .toast.error { border-left: 5px solid var(--danger); }
+    @keyframes slideIn { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* ─── Empty State ──────────────────────────────────────────────────── */
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); grid-column: 1 / -1; }
+    .empty-state h3 { font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+
+    /* ─── EMAIL SETUP PAGE ─────────────────────────────────────────────── */
+    .setup-container { max-width: 700px; margin: 0 auto; }
+    .setup-steps { display: flex; gap: 8px; margin-bottom: 32px; flex-wrap: wrap; }
+    .setup-step-pill {
+      padding: 6px 16px; border-radius: var(--r-pill);
+      font-size: 12px; font-weight: 700; border: 1.5px solid var(--border);
+      background: var(--card); box-shadow: 2px 2px 0 var(--border);
+    }
+    .setup-step-pill.active { background: var(--lilac-lt); box-shadow: 2px 2px 0 var(--lilac); }
+    .setup-step-pill.done { background: #dcfce7; border-color: #15803d; color: #15803d; }
+
+    /* ─── FILE UPLOAD AREA ─────────────────────────────────────────────── */
+    .file-drop {
+      border: 2px dashed var(--border); border-radius: var(--r-card);
+      padding: 32px; text-align: center; cursor: pointer; transition: all .2s;
+      background: var(--card);
+    }
+    .file-drop:hover, .file-drop.dragover { border-color: var(--lilac); background: var(--lilac-lt); }
+    .file-drop-icon { font-size: 36px; margin-bottom: 10px; }
+    .file-drop-text { font-size: 14px; color: var(--muted); }
+    .file-drop-text strong { color: var(--text); }
+    .att-list { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+    .att-item {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--card); border: 1.5px solid var(--border);
+      border-radius: var(--r-sm); padding: 10px 14px;
+      box-shadow: 2px 2px 0 var(--border);
+    }
+    .att-icon { font-size: 20px; }
+    .att-name { font-size: 13px; font-weight: 600; flex: 1; word-break: break-all; }
+    .att-size { font-size: 12px; color: var(--dim); white-space: nowrap; }
+    .att-del { background: none; border: none; cursor: pointer; font-size: 16px; color: var(--danger); padding: 4px; border-radius: 4px; }
+    .att-del:hover { background: #FEE2E2; }
+
+    /* ─── EMAIL DASHBOARD — Universities/Countries ─────────────────────── */
+    .uni-grid { display: flex; flex-direction: column; gap: 16px; }
+
+    .uni-card {
+      background: var(--card); border: 1.5px solid var(--border);
+      border-radius: var(--r-card); box-shadow: 3px 3px 0 var(--border);
+      overflow: hidden; transition: box-shadow .2s;
+    }
+    .uni-card:hover { box-shadow: 4px 4px 0 var(--lilac); }
+
+    .uni-header {
+      display: flex; align-items: center; gap: 14px;
+      padding: 18px 24px; cursor: pointer; user-select: none;
+    }
+    .uni-name { font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; flex: 1; }
+    .uni-count {
+      font-size: 12px; font-weight: 700; background: var(--lilac-lt);
+      border: 1.5px solid var(--border); padding: 4px 12px;
+      border-radius: var(--r-pill); box-shadow: 2px 2px 0 var(--lilac);
+    }
+    .uni-chevron { font-size: 18px; transition: transform .25s; color: var(--muted); }
+    .uni-card.open .uni-chevron { transform: rotate(180deg); }
+
+    .uni-profs { display: none; padding: 0 24px 20px; border-top: 1.5px solid var(--border-sub); }
+    .uni-card.open .uni-profs { display: block; }
+
+    .mini-prof-list { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+    .mini-prof {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--bg); border: 1.5px solid var(--border-sub);
+      border-radius: var(--r-sm); padding: 12px 16px;
+      transition: all .2s;
+    }
+    .mini-prof:hover { border-color: var(--border); background: var(--card); }
+    .mini-prof-info { flex: 1; min-width: 0; }
+    .mini-prof-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mini-prof-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mini-prof-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+    /* ─── COMPOSE WINDOW ───────────────────────────────────────────────── */
+    .compose-overlay {
+      position: fixed; inset: 0; background: rgba(18,18,18,.5);
+      z-index: 8000; display: flex; align-items: center; justify-content: center;
+      padding: 24px; backdrop-filter: blur(4px);
+    }
+    .compose-overlay.hidden { display: none; }
+
+    .compose-window {
+      background: var(--card); border: 2px solid var(--border);
+      border-radius: 24px; box-shadow: 8px 8px 0 var(--lilac);
+      width: 850px; max-width: min(92vw, 900px);
+      height: 85vh; max-height: 750px; display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .compose-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 18px 24px; border-bottom: 1.5px solid var(--border-sub);
+      background: var(--card); flex-shrink: 0;
+    }
+    .compose-title { font-family: 'Outfit', sans-serif; font-size: 19px; font-weight: 800; flex: 1; }
+    .compose-prof-badge {
+      font-size: 12px; font-weight: 700; background: var(--lilac-lt);
+      border: 1.5px solid var(--border); padding: 4px 12px; border-radius: var(--r-pill);
+      max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .compose-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--muted); padding: 4px 8px; border-radius: 6px; }
+    .compose-close:hover { background: #FEE2E2; color: var(--danger); }
+
+    .compose-body { flex: 1; overflow-y: auto; padding: 24px; }
+
+    /* Progress Steps */
+    .compose-progress { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+    .prog-step {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 16px; border-radius: var(--r-sm);
+      border: 1.5px solid var(--border-sub); background: var(--bg);
+      transition: all .3s;
+    }
+    .prog-step.active { border-color: var(--lilac); background: var(--lilac-lt); }
+    .prog-step.done { border-color: #15803d; background: #f0fdf4; }
+    .prog-step.error { border-color: var(--danger); background: #fef2f2; }
+
+    .prog-icon { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .prog-icon .spinner { display: inline-block; width: 22px; height: 22px; border: 2.5px solid var(--lilac); border-top-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .step-check-badge {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: #dcfce7; border: 1.5px solid #15803d; color: #15803d;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 800; line-height: 1; flex-shrink: 0;
+    }
+    .step-error-badge {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: #fee2e2; border: 1.5px solid #ef4444; color: #ef4444;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 800; line-height: 1; flex-shrink: 0;
+    }
+    .step-num-badge {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--card); border: 1.5px solid var(--border); color: var(--text);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; flex-shrink: 0;
+    }
+
+    .prog-text { flex: 1; min-width: 0; }
+    .prog-label { font-size: 14px; font-weight: 700; }
+    .prog-msg { font-size: 12px; color: var(--muted); margin-top: 2px; word-break: break-word; }
+
+    /* Compose Form */
+    .compose-form { display: flex; flex-direction: column; flex: 1; }
+    .compose-field { margin-bottom: 16px; }
+    .compose-field label { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .6px; }
+    .compose-input {
+      width: 100%; background: var(--bg); border: 1.5px solid var(--border-sub);
+      border-radius: var(--r-sm); padding: 10px 14px; color: var(--text);
+      font-size: 14px; font-family: inherit; outline: none; transition: all .2s;
+    }
+    .compose-input:focus { border-color: var(--lilac); box-shadow: 0 0 0 3px var(--lilac-lt); }
+    .compose-textarea { min-height: 320px; resize: vertical; flex: 1; line-height: 1.6; }
+    .compose-atts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; align-items: center; }
+    .compose-att-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--bg); border: 1.5px solid var(--border);
+      padding: 5px 12px; border-radius: var(--r-pill);
+      font-size: 12px; font-weight: 600; box-shadow: 2px 2px 0 var(--border);
+    }
+    .btn-add-att {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: var(--card); border: 1.5px dashed var(--border);
+      padding: 5px 14px; border-radius: var(--r-pill);
+      font-size: 12px; font-weight: 700; cursor: pointer; color: var(--text);
+      transition: all .2s; font-family: inherit; box-shadow: 2px 2px 0 var(--lilac);
+    }
+    .btn-add-att:hover { background: var(--lilac-lt); transform: translateY(-1px); }
+    .att-chip-del {
+      background: none; border: none; font-size: 14px; font-weight: 800;
+      color: var(--danger); cursor: pointer; padding: 0 4px; margin-left: 4px; border-radius: 4px;
+      line-height: 1;
+    }
+    .att-chip-del:hover { background: #fee2e2; }
+
+    .compose-footer {
+      padding: 14px 20px; border-top: 1.5px solid var(--border-sub);
+      display: flex; justify-content: flex-end; gap: 10px; flex-shrink: 0;
+    }
+
+    /* ─── SETTINGS PAGE ────────────────────────────────────────────────── */
+    .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 800px) { .settings-grid { grid-template-columns: 1fr; } }
+
+    /* ─── COMPLETED PAGE ───────────────────────────────────────────────── */
+    .completed-list { display: flex; flex-direction: column; gap: 12px; }
+    .completed-item {
+      display: flex; align-items: center; gap: 16px;
+      background: var(--card); border: 1.5px solid var(--border);
+      border-radius: var(--r-card); padding: 18px 22px;
+      box-shadow: 3px 3px 0 var(--border); transition: all .2s;
+    }
+    .completed-item:hover { box-shadow: 4px 4px 0 var(--lilac); }
+    .completed-tick { font-size: 24px; flex-shrink: 0; }
+    .completed-info { flex: 1; min-width: 0; }
+    .completed-name { font-weight: 700; font-size: 15px; }
+    .completed-sub { font-size: 12px; color: var(--muted); }
+    .completed-date { font-size: 12px; color: var(--dim); flex-shrink: 0; }
+
+    /* ─── Divider ──────────────────────────────────────────────────────── */
+    hr.section-sep { border: none; border-top: 1.5px solid var(--border-sub); margin: 28px 0; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!--  LANDING PAGE                                                             -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div id="page-landing" class="page active">
+  <div class="landing-hero">
+    <div class="landing-badge">AI-Powered Research Outreach</div>
+    <div class="landing-brand">Cold Email Platform</div>
+    <p class="landing-sub">Unified professor database manager and personalized AI cold email pipeline.</p>
+  </div>
+  <div class="landing-cards">
+    <div class="landing-card" onclick="showPage('professor')" id="card-prof">
+      <div class="lcard-title">Professors Directory</div>
+      <p class="lcard-desc">Manage your professor database. Add, edit, search, and export professor records.</p>
+      <div class="lcard-arrow">→</div>
+    </div>
+    <div class="landing-card" onclick="goToEmail()" id="card-email">
+      <div class="lcard-title">Send Cold Emails</div>
+      <p class="lcard-desc">Generate and send personalized research emails powered by AI scraping and OpenRouter.</p>
+      <div class="lcard-arrow">→</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!--  PROFESSOR PAGE                                                            -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div id="page-professor" class="page">
+  <div class="app">
+    <div class="section-header">
+      <button class="back-btn" onclick="showPage('landing')">← Back</button>
+      <h1 class="section-title">Professors</h1>
+    </div>
+
+    <!-- Dashboard Grid -->
+    <div class="dashboard-grid">
+      <div class="kpi-stack">
+        <div class="kpi-main">
+          <div class="kpi-val-lg" id="p-stat-total">0</div>
+          <div class="kpi-label">Total Professors</div>
+        </div>
+        <div class="kpi-row">
+          <div class="kpi-sub">
+            <div class="kpi-val-md" id="p-stat-unis">0</div>
+            <div class="kpi-label">Universities</div>
+          </div>
+          <div class="kpi-sub">
+            <div class="kpi-val-md" id="p-stat-countries">0</div>
+            <div class="kpi-label">Countries</div>
+          </div>
+        </div>
+      </div>
+      <div class="graph-card">
+        <div class="graph-header">
+          <div class="graph-title">Weekly Activity</div>
+          <div class="today-badge" id="p-today-badge">Today</div>
+        </div>
+        <div class="svg-graph-wrap" id="p-svg-container"></div>
+        <div class="graph-labels" id="p-graph-labels"></div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="nav-bar">
+      <div class="tab-group">
+        <button class="tab-btn active" id="p-tab-add" onclick="profSwitchTab('add')">Add New Professor</button>
+        <button class="tab-btn" id="p-tab-dir" onclick="profSwitchTab('dir')">Professors Directory</button>
+      </div>
+    </div>
+
+    <!-- Add Form -->
+    <div id="p-section-add" class="content-section active">
+      <div class="glass-panel">
+        <h2 class="form-title" id="p-form-heading">Add New Professor</h2>
+        <form id="p-form" onsubmit="handleProfSubmit(event)">
+          <div class="form-group-title">Basic Information</div>
+          <div class="form-grid">
+            <div class="field-wrap">
+              <label class="field-label">Professor Name <span class="req">*</span></label>
+              <input type="text" id="p-professor_name" class="field-input" required placeholder="Full Name">
+            </div>
+            <div class="field-wrap">
+              <label class="field-label">Email Address <span class="req">*</span></label>
+              <input type="email" id="p-email" class="field-input" required placeholder="email@university.edu">
+            </div>
+            <div class="field-wrap">
+              <label class="field-label">Designation <span class="opt">(Optional)</span></label>
+              <input type="text" id="p-designation" class="field-input" placeholder="Title / Role">
+            </div>
+          </div>
+          <div class="form-group-title">Academic Institution</div>
+          <div class="form-grid">
+            <div class="field-wrap">
+              <label class="field-label">University <span class="req">*</span></label>
+              <input type="text" id="p-university" class="field-input" required placeholder="University Name">
+            </div>
+            <div class="field-wrap">
+              <label class="field-label">Department <span class="req">*</span></label>
+              <input type="text" id="p-department" class="field-input" required placeholder="Department">
+            </div>
+            <div class="field-wrap">
+              <label class="field-label">Country <span class="req">*</span></label>
+              <input type="text" id="p-country" class="field-input" required placeholder="Country">
+            </div>
+          </div>
+          <div class="form-group-title">Research & Laboratory</div>
+          <div class="form-grid">
+            <div class="field-wrap">
+              <label class="field-label">Research Area <span class="req">*</span></label>
+              <input type="text" id="p-research_area" class="field-input" required placeholder="Field of Research">
+            </div>
+            <div class="field-wrap">
+              <label class="field-label">Lab Name <span class="opt">(Optional)</span></label>
+              <input type="text" id="p-lab_name" class="field-input" placeholder="Lab Name">
+            </div>
+            <div class="field-wrap">
+              <label class="field-label">Lab Website <span class="opt">(Optional)</span></label>
+              <input type="url" id="p-lab_link" class="field-input" placeholder="https://...">
+            </div>
+          </div>
+          <div class="form-group-title">Webpages</div>
+          <div class="form-grid">
+            <div class="field-wrap">
+              <label class="field-label">Webpage 1 <span class="req">*</span></label>
+              <input type="url" id="p-webpage_1" class="field-input" required placeholder="https://...">
+            </div>
+            <div class="field-wrap">
+              <label class="field-label">Webpage 2 <span class="opt">(Optional)</span></label>
+              <input type="url" id="p-webpage_2" class="field-input" placeholder="https://...">
+            </div>
+            <div class="field-wrap">
+              <label class="field-label">Webpage 3 <span class="opt">(Optional)</span></label>
+              <input type="url" id="p-webpage_3" class="field-input" placeholder="https://...">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="p-submit-btn">Save to Database</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Directory -->
+    <div id="p-section-dir" class="content-section">
+      <div class="dir-controls">
+        <div class="search-box">
+          <input type="text" id="p-search" class="search-input" placeholder="Search name, university, or research..." oninput="handleProfSearch()">
+        </div>
+        <button class="btn btn-secondary" onclick="window.location.href='/api/professors/export'">Export Excel</button>
+      </div>
+      <div id="p-cards" class="cards-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!--  EMAIL SETUP PAGE                                                          -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div id="page-email-setup" class="page">
+  <div class="app">
+    <div class="section-header">
+      <button class="back-btn" onclick="showPage('landing')">← Back</button>
+      <h1 class="section-title">Email Setup</h1>
+    </div>
+    <div class="setup-container">
+      <p style="color:var(--muted);margin-bottom:32px;font-size:15px;">Configure your Gmail credentials, upload attachments, and set your email template to get started.</p>
+
+      <div class="glass-panel">
+        <h2 class="form-title">Gmail Credentials</h2>
+        <div class="form-grid">
+          <div class="field-wrap">
+            <label class="field-label">Gmail Address <span class="req">*</span></label>
+            <input type="email" id="setup-email" class="field-input" placeholder="you@gmail.com">
+          </div>
+          <div class="field-wrap">
+            <label class="field-label">App Password <span class="req">*</span></label>
+            <input type="password" id="setup-password" class="field-input" placeholder="xxxx xxxx xxxx xxxx">
+            <span style="font-size:11px;color:var(--dim);margin-top:4px;">Generate at myaccount.google.com &gt; Security &gt; App Passwords</span>
+          </div>
+        </div>
+
+        <hr class="section-sep">
+
+        <h3 class="form-group-title">Attachments</h3>
+        <div class="file-drop" id="setup-drop-zone" onclick="document.getElementById('setup-file-input').click()" ondragover="handleDragOver(event,'setup-drop-zone')" ondragleave="handleDragLeave(event,'setup-drop-zone')" ondrop="handleDrop(event,'setup-drop-zone')">
+          <div class="file-drop-icon">+</div>
+          <div class="file-drop-text"><strong>Click to upload</strong> or drag & drop<br>PDF, images, Word docs — anything you want to attach</div>
+        </div>
+        <input type="file" id="setup-file-input" multiple style="display:none" onchange="handleFileSelect(event,'setup')">
+        <div class="att-list" id="setup-att-list"></div>
+
+        <hr class="section-sep">
+
+        <h3 class="form-group-title">Email Template</h3>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Use <code style="background:var(--lilac-lt);padding:2px 6px;border-radius:4px;font-size:12px;">{last_name}</code>, <code style="background:var(--lilac-lt);padding:2px 6px;border-radius:4px;font-size:12px;">{university}</code>, <code style="background:var(--lilac-lt);padding:2px 6px;border-radius:4px;font-size:12px;">{personalized_paragraph}</code> as placeholders. The AI will fill in the <code style="background:var(--lilac-lt);padding:2px 6px;border-radius:4px;font-size:12px;">{personalized_paragraph}</code> block.</p>
+        <textarea id="setup-template" class="field-input field-textarea" style="min-height:300px;width:100%;"></textarea>
+
+        <div class="form-actions">
+          <button class="btn btn-secondary" onclick="showPage('landing')">Cancel</button>
+          <button class="btn btn-primary" id="setup-save-btn" onclick="saveSetup()">Save &amp; Continue</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!--  EMAIL DASHBOARD                                                           -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div id="page-email-dashboard" class="page">
+  <div class="app">
+    <div class="section-header">
+      <button class="back-btn" onclick="showPage('landing')">← Back</button>
+      <h1 class="section-title">Email Dashboard</h1>
+      <div class="header-actions">
+        <button class="btn btn-secondary" onclick="showPage('email-completed')">Completed</button>
+        <button class="btn btn-secondary" onclick="openEmailSettings()">Settings</button>
+      </div>
+    </div>
+
+    <!-- Stats + Graph -->
+    <div class="dashboard-grid">
+      <div class="kpi-stack">
+        <div class="kpi-main">
+          <div class="kpi-val-lg" id="e-stat-total">0</div>
+          <div class="kpi-label">Total Professors</div>
+        </div>
+        <div class="kpi-row">
+          <div class="kpi-sub">
+            <div class="kpi-val-md" id="e-stat-sent">0</div>
+            <div class="kpi-label">Emails Sent</div>
+          </div>
+          <div class="kpi-sub">
+            <div class="kpi-val-md" id="e-stat-pending">0</div>
+            <div class="kpi-label">Remaining</div>
+          </div>
+        </div>
+      </div>
+      <div class="graph-card">
+        <div class="graph-header">
+          <div class="graph-title">Weekly Email Activity</div>
+          <div class="today-badge" id="e-today-badge">Today</div>
+        </div>
+        <div class="svg-graph-wrap" id="e-svg-container"></div>
+        <div class="graph-labels" id="e-graph-labels"></div>
+      </div>
+    </div>
+
+    <!-- Group Tabs -->
+    <div class="nav-bar">
+      <div class="tab-group">
+        <button class="tab-btn active" id="e-tab-uni" onclick="emailSwitchGroupTab('universities')">By University</button>
+        <button class="tab-btn" id="e-tab-country" onclick="emailSwitchGroupTab('countries')">By Country</button>
+      </div>
+    </div>
+
+    <div id="e-section-universities" class="content-section active">
+      <div id="e-uni-list" class="uni-grid"></div>
+    </div>
+    <div id="e-section-countries" class="content-section">
+      <div id="e-country-list" class="uni-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!--  EMAIL SETTINGS                                                            -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div id="page-email-settings" class="page">
+  <div class="app">
+    <div class="section-header">
+      <button class="back-btn" onclick="showPage('email-dashboard')">← Dashboard</button>
+      <h1 class="section-title">Settings</h1>
+    </div>
+
+    <div class="settings-grid">
+      <!-- Credentials -->
+      <div class="glass-panel">
+        <h2 class="form-title">Gmail Credentials</h2>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:20px;">Current: <strong id="s-current-email" style="color:var(--text)">—</strong></p>
+        <div class="field-wrap" style="margin-bottom:16px;">
+          <label class="field-label">New Gmail Address</label>
+          <input type="email" id="s-email" class="field-input" placeholder="you@gmail.com">
+        </div>
+        <div class="field-wrap" style="margin-bottom:24px;">
+          <label class="field-label">New App Password</label>
+          <input type="password" id="s-password" class="field-input" placeholder="Leave blank to keep current">
+        </div>
+        <button class="btn btn-primary" onclick="saveCredentials()">Update Credentials</button>
+      </div>
+
+      <!-- Attachments -->
+      <div class="glass-panel">
+        <h2 class="form-title">Attachments</h2>
+        <div class="file-drop" id="s-drop-zone" onclick="document.getElementById('s-file-input').click()" ondragover="handleDragOver(event,'s-drop-zone')" ondragleave="handleDragLeave(event,'s-drop-zone')" ondrop="handleDrop(event,'s-drop-zone')">
+          <div class="file-drop-icon">+</div>
+          <div class="file-drop-text"><strong>Click to add</strong> or drag & drop files</div>
+        </div>
+        <input type="file" id="s-file-input" multiple style="display:none" onchange="handleFileSelect(event,'s')">
+        <div class="att-list" id="s-att-list" style="margin-top:16px;"></div>
+      </div>
+    </div>
+
+    <!-- Template -->
+    <div class="glass-panel" style="margin-top:24px;">
+      <h2 class="form-title">Email Template</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Placeholders: <code style="background:var(--lilac-lt);padding:2px 6px;border-radius:4px;">{last_name}</code> <code style="background:var(--lilac-lt);padding:2px 6px;border-radius:4px;">{university}</code> <code style="background:var(--lilac-lt);padding:2px 6px;border-radius:4px;">{personalized_paragraph}</code> — AI fills in personalized_paragraph.</p>
+      <textarea id="s-template" class="field-input field-textarea" style="min-height:320px;width:100%;"></textarea>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="saveTemplate()">Save Template</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!--  COMPLETED PAGE                                                            -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div id="page-email-completed" class="page">
+  <div class="app">
+    <div class="section-header">
+      <button class="back-btn" onclick="showPage('email-dashboard')">← Dashboard</button>
+      <h1 class="section-title">Completed Emails</h1>
+    </div>
+    <div id="completed-list" class="completed-list"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!--  COMPOSE MODAL                                                             -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div id="compose-modal" class="compose-overlay hidden">
+  <div class="compose-window">
+    <div class="compose-header">
+      <div class="compose-title">New Message</div>
+      <div class="compose-prof-badge" id="compose-prof-badge">—</div>
+      <button class="compose-close" onclick="closeCompose()" title="Close">x</button>
+    </div>
+    <div class="compose-body">
+      <!-- Progress Steps -->
+      <div class="compose-progress" id="compose-progress">
+        <div class="prog-step" id="step-scraping">
+          <div class="prog-icon">1</div>
+          <div class="prog-text">
+            <div class="prog-label">Gathering Professor Data</div>
+            <div class="prog-msg" id="step-scraping-msg">Waiting...</div>
+          </div>
+        </div>
+        <div class="prog-step" id="step-writing">
+          <div class="prog-icon">2</div>
+          <div class="prog-text">
+            <div class="prog-label">Writing Personalized Email</div>
+            <div class="prog-msg" id="step-writing-msg">Waiting...</div>
+          </div>
+        </div>
+        <div class="prog-step" id="step-attaching">
+          <div class="prog-icon">3</div>
+          <div class="prog-text">
+            <div class="prog-label">Preparing Attachments</div>
+            <div class="prog-msg" id="step-attaching-msg">Waiting...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Email Form (shown after steps complete) -->
+      <div class="compose-form" id="compose-form">
+        <div class="compose-field">
+          <label>To</label>
+          <input type="email" id="compose-to" class="compose-input" readonly>
+        </div>
+        <div class="compose-field">
+          <label>Subject</label>
+          <input type="text" id="compose-subject" class="compose-input">
+        </div>
+        <div class="compose-field">
+          <label>
+            <span>Attachments</span>
+            <button type="button" class="btn-add-att" onclick="document.getElementById('compose-file-input').click()">+ Add Attachment</button>
+          </label>
+          <input type="file" id="compose-file-input" multiple style="display:none" onchange="handleComposeFileUpload(event)">
+          <div class="compose-atts" id="compose-atts"></div>
+        </div>
+        <div class="compose-field">
+          <label>Body</label>
+          <textarea id="compose-body" class="compose-input compose-textarea"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="compose-footer">
+      <button class="btn btn-secondary" onclick="closeCompose()">Cancel</button>
+      <button class="btn btn-primary" id="compose-save-btn" style="display:none" onclick="saveDraft()">Save as Draft</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!--  JAVASCRIPT                                                                -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<script>
+  // ─── State ─────────────────────────────────────────────────────────────────
+  let profList = [];
+  let isEditingProf = false;
+  let editProfId = null;
+  let emailedProfIds = new Set();
+  let currentComposeProfId = null;
+  let currentComposeProfData = null;
+
+  // ─── Page Navigation & Routing ───────────────────────────────────────────────
+  const PATH_MAP = {
+    '/': 'landing',
+    '/professor': 'professor',
+    '/professors': 'professor',
+    '/email': 'email-dashboard',
+    '/email-dashboard': 'email-dashboard',
+    '/email-setup': 'email-setup',
+    '/setup': 'email-setup',
+    '/email-settings': 'email-settings',
+    '/settings': 'email-settings',
+    '/login': 'email-setup',
+    '/completed': 'email-completed',
+    '/email-completed': 'email-completed'
+  };
+
+  function getRoutePath(pageName) {
+    const map = {
+      'landing': '/',
+      'professor': '/professors',
+      'email-dashboard': '/email-dashboard',
+      'email-setup': '/email-setup',
+      'email-settings': '/email-settings',
+      'email-completed': '/completed'
+    };
+    return map[pageName] || '/';
+  }
+
+  function showPage(name, updateUrl = true) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    const el = document.getElementById('page-' + name);
+    if (el) el.classList.add('active');
+
+    if (updateUrl) {
+      const targetPath = getRoutePath(name);
+      if (window.location.pathname !== targetPath) {
+        history.pushState({ page: name }, '', targetPath);
+      }
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    if (name === 'landing') {
+      initLandingGSAP();
+    } else if (name === 'professor') {
+      loadProfWeeklyStats();
+      loadProfessors();
+    } else if (name === 'email-dashboard') {
+      loadEmailDashboard();
+    } else if (name === 'email-settings') {
+      loadSettingsPage();
+    } else if (name === 'email-completed') {
+      loadCompleted();
+    }
+  }
+
+  function initLandingGSAP() {
+    if (typeof gsap === 'undefined') return;
+
+    // Hero entrance animation
+    const tl = gsap.timeline();
+    tl.fromTo('.landing-badge',
+      { opacity: 0, y: -20, scale: 0.9 },
+      { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: 'power2.out' }
+    )
+    .fromTo('.landing-brand', 
+      { opacity: 0, y: 40, scale: 0.94 },
+      { opacity: 1, y: 0, scale: 1, duration: 0.8, ease: 'back.out(1.4)' },
+      '-=0.3'
+    )
+    .fromTo('.landing-sub',
+      { opacity: 0, y: 20 },
+      { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out' },
+      '-=0.4'
+    )
+    .fromTo('.landing-card',
+      { opacity: 0, y: 45, rotationX: 10 },
+      { opacity: 1, y: 0, rotationX: 0, duration: 0.7, stagger: 0.15, ease: 'power3.out' },
+      '-=0.3'
+    );
+  }
+
+  window.addEventListener('popstate', () => {
+    const path = window.location.pathname;
+    const pageName = PATH_MAP[path] || 'landing';
+    showPage(pageName, false);
+  });
+
+  async function goToProfessors() {
+    showPage('professor');
+  }
+
+  async function goToEmail() {
+    try {
+      const res = await fetch('/api/email-settings');
+      const data = await res.json();
+      if (data.configured) {
+        showPage('email-dashboard');
+      } else {
+        await loadSetupPage();
+        showPage('email-setup');
+      }
+    } catch (e) {
+      await loadSetupPage();
+      showPage('email-setup');
+    }
+  }
+
+  function openEmailSettings() {
+    showPage('email-settings');
+  }
+
+  // ─── Utility ───────────────────────────────────────────────────────────────
+  function esc(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  }
+  function fmtSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/1024/1024).toFixed(1) + ' MB';
+  }
+  function fmtDate(str) {
+    if (!str || str === 'None') return '';
+    try { return new Date(str).toLocaleDateString(); } catch { return str; }
+  }
+  function showToast(msg, type='success') {
+    const c = document.getElementById('toast-container');
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.textContent = msg;
+    c.appendChild(t);
+    setTimeout(() => t.remove(), 4500);
+  }
+  function fileIcon(mime) {
+    return '';
+  }
+
+  // ─── SVG Graph ─────────────────────────────────────────────────────────────
+  function renderGraph(containerId, labelsId, days, todayIndex) {
+    const svgEl = document.getElementById(containerId);
+    const lblEl = document.getElementById(labelsId);
+    if (!days || !days.length || !svgEl) return;
+    const w = svgEl.clientWidth || 400, h = 150, pad = 20;
+    const maxC = Math.max(...days.map(d => d.count), 5);
+    const pts = days.map((d,i) => ({
+      x: pad + (i*(w-2*pad)/(days.length-1)),
+      y: h - pad - (d.count/maxC*(h-2*pad)),
+      isToday: d.is_today,
+    }));
+    let path = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i=0;i<pts.length-1;i++) {
+      const cx = (pts[i].x+pts[i+1].x)/2;
+      path += ` C ${cx} ${pts[i].y}, ${cx} ${pts[i+1].y}, ${pts[i+1].x} ${pts[i+1].y}`;
+    }
+    const fill = `${path} L ${pts[pts.length-1].x} ${h} L ${pts[0].x} ${h} Z`;
+    let svg = `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="overflow:visible">
+      <defs><linearGradient id="cg${containerId}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#B376E6" stop-opacity="0.3"/>
+        <stop offset="100%" stop-color="#B376E6" stop-opacity="0.0"/>
+      </linearGradient></defs>
+      <path d="${fill}" fill="url(#cg${containerId})"/>
+      <path d="${path}" fill="none" stroke="#121212" stroke-width="3" stroke-linecap="round"/>`;
+    pts.forEach(p => {
+      svg += `<circle cx="${p.x}" cy="${p.y}" r="${p.isToday?6:4}" fill="${p.isToday?'#B376E6':'#FFF'}" stroke="#121212" stroke-width="${p.isToday?3:2}"/>`;
+    });
+    svg += '</svg>';
+    svgEl.innerHTML = svg;
+    if (lblEl) lblEl.innerHTML = days.map((d,i) => `<div class="day-lbl ${d.is_today?'today':''}">${d.day}</div>`).join('');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  PROFESSOR SECTION
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function profSwitchTab(t) {
+    document.getElementById('p-tab-add').classList.toggle('active', t==='add');
+    document.getElementById('p-tab-dir').classList.toggle('active', t==='dir');
+    document.getElementById('p-section-add').classList.toggle('active', t==='add');
+    document.getElementById('p-section-dir').classList.toggle('active', t==='dir');
+  }
+
+  async function loadProfWeeklyStats() {
+    try {
+      const res = await fetch('/api/weekly-stats');
+      const data = await res.json();
+      document.getElementById('p-today-badge').textContent = `Today: ${data.today_name}`;
+      renderGraph('p-svg-container','p-graph-labels', data.days, data.today_index);
+    } catch(e) {}
+  }
+
+  async function loadProfessors(q='') {
+    try {
+      const url = q ? `/api/professors?q=${encodeURIComponent(q)}` : '/api/professors';
+      const res = await fetch(url);
+      profList = await res.json();
+      renderProfCards(profList);
+      document.getElementById('p-stat-total').textContent = profList.length;
+      document.getElementById('p-stat-unis').textContent = new Set(profList.map(p=>p.university).filter(Boolean)).size;
+      document.getElementById('p-stat-countries').textContent = new Set(profList.map(p=>p.country).filter(Boolean)).size;
+    } catch(e) { showToast('Error loading professors: '+e.message,'error'); }
+  }
+
+  function renderProfCards(list) {
+    const c = document.getElementById('p-cards');
+    if (!list.length) {
+      c.innerHTML = `<div class="empty-state"><h3>No Professors Found</h3><p>Add a professor or adjust search.</p></div>`;
+      return;
+    }
+    c.innerHTML = list.map(p => `
+      <div class="prof-card">
+        <div>
+          <div class="prof-name">${esc(p.professor_name)}</div>
+          ${p.research_area ? `<div class="badge-tag">${esc(p.research_area)}</div>` : ''}
+          <div class="prof-meta">
+            <div>Email: <strong>${esc(p.email)}</strong></div>
+            ${p.designation ? `<div>${esc(p.designation)}</div>` : ''}
+            <div>${esc(p.university)} ${p.country?`(${esc(p.country)})`:''}  • ${esc(p.department)}</div>
+            ${p.lab_name ? `<div>Lab: ${esc(p.lab_name)}</div>` : ''}
+          </div>
+          ${(p.lab_link||p.webpage_1||p.webpage_2||p.webpage_3)?`<div class="links-group">
+            ${p.lab_link?`<a href="${esc(p.lab_link)}" target="_blank" class="link-chip">Lab</a>`:''}
+            ${p.webpage_1?`<a href="${esc(p.webpage_1)}" target="_blank" class="link-chip">Webpage 1</a>`:''}
+            ${p.webpage_2?`<a href="${esc(p.webpage_2)}" target="_blank" class="link-chip">Webpage 2</a>`:''}
+            ${p.webpage_3?`<a href="${esc(p.webpage_3)}" target="_blank" class="link-chip">Webpage 3</a>`:''}
+          </div>`:''}
+        </div>
+        <div class="card-footer">
+          <button class="action-btn" onclick="startProfEdit('${esc(p.id)}')">Edit</button>
+          <button class="action-btn delete" onclick="deleteProf('${esc(p.id)}')">Delete</button>
+        </div>
+      </div>`).join('');
+  }
+
+  function handleProfSearch() {
+    loadProfessors(document.getElementById('p-search').value);
+  }
+
+  async function handleProfSubmit(e) {
+    e.preventDefault();
+    const btn = document.getElementById('p-submit-btn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    const payload = {
+      professor_name: document.getElementById('p-professor_name').value.trim(),
+      email: document.getElementById('p-email').value.trim(),
+      university: document.getElementById('p-university').value.trim(),
+      department: document.getElementById('p-department').value.trim(),
+      country: document.getElementById('p-country').value.trim(),
+      research_area: document.getElementById('p-research_area').value.trim(),
+      webpage_1: document.getElementById('p-webpage_1').value.trim(),
+      designation: document.getElementById('p-designation').value.trim(),
+      lab_name: document.getElementById('p-lab_name').value.trim(),
+      lab_link: document.getElementById('p-lab_link').value.trim(),
+      webpage_2: document.getElementById('p-webpage_2').value.trim(),
+      webpage_3: document.getElementById('p-webpage_3').value.trim(),
+    };
+    try {
+      const res = await fetch(
+        isEditingProf ? `/api/professors/${editProfId}` : '/api/professors',
+        { method: isEditingProf?'PUT':'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail||'Server error');
+      showToast(isEditingProf?'Professor updated!':'Professor saved!');
+      resetProfForm(); profSwitchTab('dir'); loadProfessors(); loadProfWeeklyStats();
+    } catch(e) { showToast(e.message,'error'); }
+    finally { btn.disabled=false; btn.textContent='Save to Database'; }
+  }
+
+  async function deleteProf(id) {
+    if (!confirm('Delete this professor?')) return;
+    try {
+      const res = await fetch(`/api/professors/${id}`,{method:'DELETE'});
+      if (!res.ok) throw new Error((await res.json()).detail||'Failed');
+      showToast('Professor deleted'); loadProfessors(); loadProfWeeklyStats();
+    } catch(e) { showToast(e.message,'error'); }
+  }
+
+  function startProfEdit(id) {
+    const p = profList.find(x=>x.id===id); if(!p) return;
+    isEditingProf=true; editProfId=id;
+    document.getElementById('p-form-heading').textContent = 'Edit Professor';
+    ['professor_name','email','designation','university','department','country','research_area','lab_name','lab_link','webpage_1','webpage_2','webpage_3'].forEach(k=>{
+      const el=document.getElementById('p-'+k); if(el) el.value=p[k]||'';
+    });
+    profSwitchTab('add');
+  }
+
+  function resetProfForm() {
+    isEditingProf=false; editProfId=null;
+    document.getElementById('p-form-heading').textContent='Add New Professor';
+    document.getElementById('p-form').reset();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  SETUP PAGE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  async function loadSetupPage() {
+    // Load default template
+    try {
+      const res = await fetch('/api/email-template');
+      const data = await res.json();
+      document.getElementById('setup-template').value = data.template_text || '';
+    } catch(e) {}
+    // Load existing attachments
+    await refreshAttList('setup');
+  }
+
+  async function saveSetup() {
+    const email = document.getElementById('setup-email').value.trim();
+    const pass = document.getElementById('setup-password').value.trim();
+    const tmpl = document.getElementById('setup-template').value.trim();
+    if (!email || !pass) { showToast('Email and App Password are required','error'); return; }
+    const btn = document.getElementById('setup-save-btn');
+    btn.disabled=true; btn.textContent='Saving...';
+    try {
+      // Save credentials
+      const r1 = await fetch('/api/email-settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email_address:email,app_password:pass})});
+      if(!r1.ok) throw new Error((await r1.json()).detail||'Failed to save credentials');
+      // Save template
+      if (tmpl) {
+        const r2 = await fetch('/api/email-template',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({template_text:tmpl})});
+        if(!r2.ok) throw new Error((await r2.json()).detail||'Failed to save template');
+      }
+      showToast('Setup complete!');
+      showPage('email-dashboard');
+    } catch(e) { showToast(e.message,'error'); }
+    finally { btn.disabled=false; btn.textContent='Save & Continue →'; }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  FILE UPLOAD (shared between setup and settings)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function handleDragOver(e, zoneId) {
+    e.preventDefault(); document.getElementById(zoneId).classList.add('dragover');
+  }
+  function handleDragLeave(e, zoneId) {
+    document.getElementById(zoneId).classList.remove('dragover');
+  }
+  function handleDrop(e, zoneId) {
+    e.preventDefault();
+    document.getElementById(zoneId).classList.remove('dragover');
+    const prefix = zoneId.replace('-drop-zone','');
+    uploadFiles(e.dataTransfer.files, prefix);
+  }
+  function handleFileSelect(e, prefix) {
+    uploadFiles(e.target.files, prefix);
+    e.target.value='';
+  }
+
+  async function uploadFiles(files, prefix) {
+    for (const file of files) {
+      const fd = new FormData();
+      fd.append('file', file);
+      try {
+        const res = await fetch('/api/attachments',{method:'POST',body:fd});
+        if(!res.ok) throw new Error((await res.json()).detail||'Upload failed');
+        showToast(`"${file.name}" uploaded`);
+      } catch(e) { showToast(e.message,'error'); }
+    }
+    await refreshAttList(prefix);
+    // Also refresh compose attachments if open
+    if (currentComposeProfId) refreshComposeAtts();
+  }
+
+  async function refreshAttList(prefix) {
+    const listId = prefix+'-att-list';
+    const el = document.getElementById(listId);
+    if (!el) return;
+    try {
+      const res = await fetch('/api/attachments');
+      const atts = await res.json();
+      el.innerHTML = atts.length ? atts.map(a=>`
+        <div class="att-item">
+          <span class="att-icon">${fileIcon(a.mime_type)}</span>
+          <span class="att-name">${esc(a.filename)}</span>
+          <span class="att-size">${fmtSize(a.file_size)}</span>
+          <button class="att-del" onclick="deleteAtt('${esc(a.id)}','${prefix}')" title="Remove">x</button>
+        </div>`).join('') : '<p style="font-size:13px;color:var(--muted);padding:8px 0;">No attachments yet.</p>';
+    } catch(e) {}
+  }
+
+  async function deleteAtt(id, prefix) {
+    try {
+      await fetch(`/api/attachments/${id}`,{method:'DELETE'});
+      showToast('Attachment removed');
+      await refreshAttList(prefix);
+    } catch(e) { showToast(e.message,'error'); }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  EMAIL DASHBOARD
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function emailSwitchGroupTab(t) {
+    document.getElementById('e-tab-uni').classList.toggle('active',t==='universities');
+    document.getElementById('e-tab-country').classList.toggle('active',t==='countries');
+    document.getElementById('e-section-universities').classList.toggle('active',t==='universities');
+    document.getElementById('e-section-countries').classList.toggle('active',t==='countries');
+  }
+
+  async function loadEmailDashboard() {
+    try {
+      // Stats
+      const [statsRes, weekRes, profsRes, emailedRes] = await Promise.all([
+        fetch('/api/email-stats'),
+        fetch('/api/email-weekly-stats'),
+        fetch('/api/professors'),
+        fetch('/api/emailed-professors'),
+      ]);
+      const stats = await statsRes.json();
+      const week = await weekRes.json();
+      const profs = await profsRes.json();
+      const emailed = await emailedRes.json();
+      emailedProfIds = new Set(emailed);
+
+      document.getElementById('e-stat-total').textContent = stats.total_professors;
+      document.getElementById('e-stat-sent').textContent = stats.emails_sent;
+      document.getElementById('e-stat-pending').textContent = Math.max(0, stats.total_professors - stats.emails_sent);
+      document.getElementById('e-today-badge').textContent = `Today: ${week.today_name}`;
+      renderGraph('e-svg-container','e-graph-labels', week.days, week.today_index);
+
+      // Group by university and country
+      renderGroupedList('e-uni-list', profs, 'university');
+      renderGroupedList('e-country-list', profs, 'country');
+    } catch(e) { showToast('Error loading dashboard: '+e.message,'error'); }
+  }
+
+  function renderGroupedList(containerId, profs, groupKey) {
+    const container = document.getElementById(containerId);
+    const grouped = {};
+    profs.forEach(p => {
+      const key = p[groupKey] || 'Unknown';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(p);
+    });
+    const sorted = Object.keys(grouped).sort();
+    if (!sorted.length) {
+      container.innerHTML = `<div class="empty-state"><h3>No data yet</h3><p>Add professors to get started.</p></div>`;
+      return;
+    }
+    container.innerHTML = sorted.map(group => {
+      const list = grouped[group];
+      const groupId = 'grp-' + btoa(encodeURIComponent(group)).replace(/=/g,'');
+      return `
+        <div class="uni-card" id="${groupId}">
+          <div class="uni-header" onclick="toggleGroup('${groupId}')">
+            <div class="uni-name">${esc(group)}</div>
+            <div class="uni-count">${list.length} professor${list.length!==1?'s':''}</div>
+            <div class="uni-chevron">▾</div>
+          </div>
+          <div class="uni-profs">
+            <div class="mini-prof-list">
+              ${list.map(p => {
+                const sent = emailedProfIds.has(p.id);
+                return `<div class="mini-prof" id="mini-${esc(p.id)}">
+                  <div class="mini-prof-info">
+                    <div class="mini-prof-name">${esc(p.professor_name)}</div>
+                    <div class="mini-prof-sub">${esc(p.email)} • ${esc(p.research_area||'')}</div>
+                  </div>
+                  <div class="mini-prof-actions">
+                    ${sent
+                      ? `<button class="action-btn emailed" disabled>Emailed</button>`
+                      : `<button class="action-btn send-email-btn" onclick="openCompose('${esc(p.id)}')">Send Email</button>`
+                    }
+                  </div>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function toggleGroup(id) {
+    document.getElementById(id).classList.toggle('open');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  SETTINGS PAGE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  async function loadSettingsPage() {
+    try {
+      const r = await fetch('/api/email-settings');
+      const d = await r.json();
+      document.getElementById('s-current-email').textContent = d.email_address || '—';
+    } catch(e) {}
+    try {
+      const r = await fetch('/api/email-template');
+      const d = await r.json();
+      document.getElementById('s-template').value = d.template_text || '';
+    } catch(e) {}
+    await refreshAttList('s');
+  }
+
+  async function saveCredentials() {
+    const email = document.getElementById('s-email').value.trim();
+    const pass = document.getElementById('s-password').value.trim();
+    if (!email) { showToast('Enter email address','error'); return; }
+    try {
+      // If password is blank, get the existing one — not possible without decryption
+      // So require password for updates
+      if (!pass) { showToast('Enter new app password (required for update)','error'); return; }
+      const res = await fetch('/api/email-settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email_address:email,app_password:pass})});
+      if(!res.ok) throw new Error((await res.json()).detail);
+      showToast('Credentials updated!');
+      document.getElementById('s-current-email').textContent = email;
+      document.getElementById('s-email').value=''; document.getElementById('s-password').value='';
+    } catch(e) { showToast(e.message,'error'); }
+  }
+
+  async function saveTemplate() {
+    const tmpl = document.getElementById('s-template').value.trim();
+    if (!tmpl) { showToast('Template cannot be empty','error'); return; }
+    try {
+      const res = await fetch('/api/email-template',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({template_text:tmpl})});
+      if(!res.ok) throw new Error((await res.json()).detail);
+      showToast('Template saved!');
+    } catch(e) { showToast(e.message,'error'); }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  COMPLETED PAGE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  async function loadCompleted() {
+    const c = document.getElementById('completed-list');
+    try {
+      const res = await fetch('/api/email-logs');
+      const logs = await res.json();
+      if (!logs.length) {
+        c.innerHTML = `<div class="empty-state"><h3>No emails sent yet</h3><p>Send your first email from the dashboard.</p></div>`;
+        return;
+      }
+      c.innerHTML = logs.map(l => `
+        <div class="completed-item">
+          <div class="completed-tick">-</div>
+          <div class="completed-info">
+            <div class="completed-name">${esc(l.professor_name||'—')}</div>
+            <div class="completed-sub">${esc(l.university||'—')} • ${esc(l.subject||'—')}</div>
+          </div>
+          <div class="completed-date">${fmtDate(l.created_at)}</div>
+        </div>`).join('');
+    } catch(e) { c.innerHTML = `<div class="empty-state"><h3>Error</h3><p>${e.message}</p></div>`; }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  COMPOSE WINDOW + SSE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function openCompose(profId) {
+    currentComposeProfId = profId;
+    currentComposeProfData = null;
+
+    // Reset UI
+    document.getElementById('compose-prof-badge').textContent = 'Loading...';
+    document.getElementById('compose-form').style.display = 'none';
+    document.getElementById('compose-save-btn').style.display = 'none';
+    document.getElementById('compose-progress').style.display = 'flex';
+    document.getElementById('compose-to').value = '';
+    document.getElementById('compose-subject').value = '';
+    document.getElementById('compose-body').value = '';
+    document.getElementById('compose-atts').innerHTML = '';
+
+    // Reset steps
+    const stepNums = {scraping:'1', writing:'2', attaching:'3'};
+    ['scraping','writing','attaching'].forEach(s => {
+      const el = document.getElementById('step-'+s);
+      el.className = 'prog-step';
+      el.querySelector('.prog-msg').textContent = 'Waiting...';
+      el.querySelector('.prog-icon').innerHTML = `<div class="step-num-badge">${stepNums[s]}</div>`;
+    });
+
+    document.getElementById('compose-modal').classList.remove('hidden');
+    startEmailSSE(profId);
+  }
+
+  function closeCompose() {
+    document.getElementById('compose-modal').classList.add('hidden');
+    currentComposeProfId = null;
+    currentComposeProfData = null;
+  }
+
+  function setStepState(stepName, state, msg) {
+    const el = document.getElementById('step-'+stepName);
+    if (!el) return;
+    el.className = 'prog-step ' + state;
+    el.querySelector('.prog-msg').textContent = msg;
+    const iconEl = el.querySelector('.prog-icon');
+    if (state === 'active') {
+      iconEl.innerHTML = '<span class="spinner"></span>';
+    } else if (state === 'done') {
+      iconEl.innerHTML = '<div class="step-check-badge">✓</div>';
+    } else if (state === 'error') {
+      iconEl.innerHTML = '<div class="step-error-badge">!</div>';
+    }
+  }
+
+  async function startEmailSSE(profId) {
+    setStepState('scraping','active','Starting data collection...');
+
+    try {
+      const response = await fetch(`/api/send-email/${profId}`, {method:'POST'});
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, {stream:true});
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            handleSSEEvent(data);
+          } catch(e) {}
+        }
+      }
+    } catch(e) {
+      setStepState('scraping','error','Connection error: '+e.message);
+    }
+  }
+
+  function renderComposeAttsList(attachments) {
+    const attsEl = document.getElementById('compose-atts');
+    if (!attsEl) return;
+    if (attachments && attachments.length) {
+      attsEl.innerHTML = attachments.map(a =>
+        `<span class="compose-att-chip">
+           ${fileIcon(a.mime_type)} ${esc(a.filename)} (${fmtSize(a.file_size)})
+           <button type="button" class="att-chip-del" onclick="deleteComposeAtt('${esc(a.id)}')" title="Remove attachment">x</button>
+         </span>`
+      ).join('');
+    } else {
+      attsEl.innerHTML = '<span style="font-size:12px;color:var(--muted)">No attachments</span>';
+    }
+  }
+
+  function handleSSEEvent(data) {
+    const step = data.step;
+
+    if (step === 'scraping') {
+      setStepState('scraping','active',data.message);
+    } else if (step === 'scraping_done') {
+      setStepState('scraping','done',data.message);
+      setStepState('writing','active','Contacting OpenRouter AI...');
+    } else if (step === 'writing') {
+      setStepState('writing','active',data.message);
+    } else if (step === 'writing_done') {
+      setStepState('writing','done',data.message);
+      setStepState('attaching','active','Loading files from database...');
+    } else if (step === 'attaching') {
+      setStepState('attaching','active',data.message);
+    } else if (step === 'attaching_done') {
+      setStepState('attaching','done',data.message);
+    } else if (step === 'ready') {
+      // Show the email form
+      currentComposeProfData = data;
+      document.getElementById('compose-prof-badge').textContent = data.professor_name || '—';
+      document.getElementById('compose-to').value = data.to_email || '';
+      document.getElementById('compose-subject').value = data.subject || '';
+      document.getElementById('compose-body').value = data.body || '';
+
+      renderComposeAttsList(data.attachments);
+
+      document.getElementById('compose-progress').style.display = 'none';
+      document.getElementById('compose-form').style.display = 'flex';
+      document.getElementById('compose-save-btn').style.display = 'inline-flex';
+    } else if (step === 'error') {
+      setStepState('scraping','error',data.message);
+      showToast('Error: '+data.message,'error');
+    }
+  }
+
+  async function refreshComposeAtts() {
+    try {
+      const res = await fetch('/api/attachments');
+      const atts = await res.json();
+      renderComposeAttsList(atts);
+    } catch(e) {}
+  }
+
+  async function handleComposeFileUpload(e) {
+    const files = e.target.files;
+    if (!files || !files.length) return;
+    for (const file of files) {
+      const fd = new FormData();
+      fd.append('file', file);
+      try {
+        const res = await fetch('/api/attachments', {method:'POST', body:fd});
+        if (!res.ok) throw new Error((await res.json()).detail || 'Upload failed');
+        showToast(`"${file.name}" attached`);
+      } catch(err) {
+        showToast(err.message, 'error');
+      }
+    }
+    e.target.value = '';
+    await refreshComposeAtts();
+  }
+
+  async function deleteComposeAtt(attId) {
+    try {
+      await fetch(`/api/attachments/${attId}`, {method:'DELETE'});
+      showToast('Attachment removed');
+      await refreshComposeAtts();
+    } catch(err) {
+      showToast(err.message, 'error');
+    }
+  }
+
+
+
+  async function saveDraft() {
+    if (!currentComposeProfData) return;
+    const btn = document.getElementById('compose-save-btn');
+    btn.disabled=true; btn.textContent='Saving...';
+    const payload = {
+      professor_id: currentComposeProfData.professor_id || '',
+      professor_name: currentComposeProfData.professor_name || '',
+      university: currentComposeProfData.university || '',
+      to_email: document.getElementById('compose-to').value.trim(),
+      subject: document.getElementById('compose-subject').value.trim(),
+      body: document.getElementById('compose-body').value.trim(),
+    };
+    try {
+      const res = await fetch('/api/save-draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.detail||'Failed to save draft');
+      showToast('Draft saved to Gmail!');
+      closeCompose();
+      // Update emailed status in dashboard
+      if (payload.professor_id) {
+        emailedProfIds.add(payload.professor_id);
+        const miniBtn = document.querySelector(`#mini-${payload.professor_id} .send-email-btn`);
+        if (miniBtn) {
+          miniBtn.outerHTML = `<button class="action-btn emailed" disabled>Emailed</button>`;
+        }
+      }
+      // Refresh stats
+      const statsRes = await fetch('/api/email-stats');
+      const stats = await statsRes.json();
+      document.getElementById('e-stat-sent').textContent = stats.emails_sent;
+      document.getElementById('e-stat-pending').textContent = Math.max(0, stats.total_professors - stats.emails_sent);
+    } catch(e) { showToast(e.message,'error'); }
+    finally { btn.disabled=false; btn.textContent='Save as Draft'; }
+  }
+
+  // ─── Init ───────────────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    const initialPath = window.location.pathname;
+    const pageName = PATH_MAP[initialPath] || 'landing';
+    showPage(pageName, false);
+  });
+</script>
+</body>
+</html>
