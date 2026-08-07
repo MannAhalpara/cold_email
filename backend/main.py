@@ -48,9 +48,10 @@ except ImportError:
     print("[WARNING] send_otp_email function not found in send_email.py.")
 
 # ─── Environment ──────────────────────────────────────────────────────────────
-load_dotenv(dotenv_path=ROOT_DIR / ".env", override=True)
+load_dotenv(dotenv_path=ROOT_DIR / ".env", override=False)
 if not os.getenv("DATABASE_URL"):
-    load_dotenv(dotenv_path=BACKEND_DIR / ".env", override=True)
+    load_dotenv(dotenv_path=BACKEND_DIR / ".env", override=False)
+
 
 # ─── FastAPI App ───────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -323,11 +324,16 @@ def request_otp(payload: SendOTPIn):
         send_otp_email(email, otp)
         cleanup_expired_auth()
         return {"message": f"OTP verification code sent to {email}"}
+    except HTTPException:
+        conn.rollback()
+        raise
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to send OTP: {e}")
+        print(f"[ERROR] Failed to send OTP email: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to send OTP: {str(e)}")
     finally:
         conn.close()
+
 
 
 @app.post("/api/auth/verify-otp")
