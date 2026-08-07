@@ -1,2 +1,22 @@
+[project]
+name = "cold-email"
+version = "0.1.0"
+description = "Cold Email Automation & Multi-User Professor Database Platform"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
+    "psycopg2-binary>=2.9.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "openpyxl>=3.1.0",
+    "cryptography>=41.0.0",
+    "requests>=2.28.0",
+    "pypdf>=3.0.0",
+    "tinyfish>=0.1.0",
+    "python-multipart>=0.0.6"
+]
+
 [tool.vercel]
 entrypoint = "main:app"
