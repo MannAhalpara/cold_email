@@ -8,6 +8,9 @@ BACKEND_DIR = ROOT_DIR / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+# Export top-level app for Vercel and serverless environments
+from backend.main import app
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
