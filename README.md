@@ -1,6 +1,6 @@
 # Cold Email Automation & Multi-User Professor Database Platform
 
-deployed : https://cold-email-ne8j.onrender.com/
+deployed : [cold-email](https://cold-email-1.vercel.app/)
 
 A high-performance, multi-user full-stack application designed to manage academic professor databases with user data isolation, automate web scraping of lab research data, generate personalized AI outreach alignment paragraphs using OpenRouter LLMs, and synchronize email drafts directly with Gmail.
 
