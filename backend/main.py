@@ -43,9 +43,10 @@ except ImportError:
     print("[WARNING] tinyfish_scraper/openrouter not available.")
 
 try:
-    from send_email import send_otp_email
+    from send_email import send_otp_email, ForceIPv4
 except ImportError:
     print("[WARNING] send_otp_email function not found in send_email.py.")
+
 
 # ─── Environment ──────────────────────────────────────────────────────────────
 load_dotenv(dotenv_path=ROOT_DIR / ".env", override=False)
@@ -1219,13 +1220,15 @@ def save_draft(payload: SaveDraftIn, current_user: dict = Depends(get_current_us
             msg.attach(part)
 
         now_imap = imaplib.Time2Internaldate(time_module.time())
-        with imaplib.IMAP4_SSL("imap.gmail.com", 993) as imap:
-            imap.login(sender_email, app_password)
-            res, _ = imap.append('"[Gmail]/Drafts"', r"(\Draft)", now_imap, msg.as_bytes())
-            if res != "OK":
-                res, data = imap.append("Drafts", r"(\Draft)", now_imap, msg.as_bytes())
+        with ForceIPv4():
+            with imaplib.IMAP4_SSL("imap.gmail.com", 993, timeout=15) as imap:
+                imap.login(sender_email, app_password)
+                res, _ = imap.append('"[Gmail]/Drafts"', r"(\Draft)", now_imap, msg.as_bytes())
                 if res != "OK":
-                    raise RuntimeError(f"IMAP append failed: {data}")
+                    res, data = imap.append("Drafts", r"(\Draft)", now_imap, msg.as_bytes())
+                    if res != "OK":
+                        raise RuntimeError(f"IMAP append failed: {data}")
+
 
         log_id = f"log_{uuid.uuid4().hex[:8]}"
         with conn.cursor() as cur:
