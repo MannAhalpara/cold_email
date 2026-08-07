@@ -474,15 +474,76 @@
 </head>
 <body>
 
+<!-- ─── Top Global Navigation Header ────────────────────────────────────────── -->
+<header id="app-header" style="display: none; max-width: 1280px; margin: 0 auto; padding: 16px 24px; align-items: center; justify-content: space-between; border-bottom: 1.5px solid var(--border-sub);">
+  <div style="display: flex; align-items: center; gap: 12px; cursor: pointer;" onclick="showPage('landing')">
+    <div style="font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 900; background: linear-gradient(135deg, #7E22CE 0%, #A855F7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -.5px;">Cold Email Platform</div>
+  </div>
+  <div style="display: flex; align-items: center; gap: 14px;">
+    <div id="user-email-badge" style="background: var(--card); border: 1.5px solid var(--border); border-radius: var(--r-pill); padding: 6px 16px; font-size: 13px; font-weight: 600; box-shadow: 2px 2px 0 var(--border); display: flex; align-items: center; gap: 8px;">
+      <span style="width: 8px; height: 8px; background: var(--success); border-radius: 50%; display: inline-block;"></span>
+      <span id="user-email-text">user@example.com</span>
+    </div>
+    <button class="back-btn" style="box-shadow: 2px 2px 0 var(--border);" onclick="logoutUser()">Logout</button>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!--  LOGIN PAGE                                                                -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div id="page-login" class="page">
+  <div style="min-height: 85vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px;">
+    <div style="text-align: center; margin-bottom: 32px; max-width: 520px;">
+      <div class="landing-badge" style="margin-bottom: 16px;">Authentication Required</div>
+      <h1 class="landing-brand" style="font-size: clamp(36px, 6vw, 56px); margin-bottom: 12px;">Welcome Back</h1>
+      <p style="color: var(--muted); font-size: 16px; font-weight: 500;">Sign in with your email address to access your isolated professor database and cold email workspace.</p>
+    </div>
+
+    <div class="glass-panel" style="max-width: 440px; width: 100%; padding: 36px 32px; border-radius: 24px; box-shadow: 6px 6px 0 var(--border);">
+      <!-- Step 1: Request OTP -->
+      <div id="login-step-1">
+        <div class="form-group-title" style="margin-top: 0; font-size: 16px; margin-bottom: 20px;">Sign In via Email OTP</div>
+        <div class="field-wrap" style="margin-bottom: 24px;">
+          <label class="field-label">Email Address <span class="req">*</span></label>
+          <input type="email" id="login-email" class="field-input" placeholder="you@university.edu" required onkeydown="if(event.key==='Enter') requestLoginOTP()">
+        </div>
+        <button class="btn btn-primary" id="login-send-btn" style="width: 100%; justify-content: center; padding: 14px 24px; font-size: 15px;" onclick="requestLoginOTP()">
+          Send Verification Code
+        </button>
+      </div>
+
+      <!-- Step 2: Verify OTP -->
+      <div id="login-step-2" style="display: none;">
+        <div class="form-group-title" style="margin-top: 0; font-size: 16px; margin-bottom: 8px;">Enter 6-Digit Code</div>
+        <p style="font-size: 13px; color: var(--muted); margin-bottom: 20px;">
+          We sent a verification code to <strong id="login-sent-email" style="color: var(--text);"></strong>.
+        </p>
+        <div class="field-wrap" style="margin-bottom: 24px;">
+          <label class="field-label">Verification Code <span class="req">*</span></label>
+          <input type="text" id="login-otp" class="field-input" placeholder="123456" maxlength="6" style="letter-spacing: 6px; font-size: 22px; font-weight: 800; text-align: center;" onkeydown="if(event.key==='Enter') verifyLoginOTP()">
+        </div>
+        <button class="btn btn-primary" id="login-verify-btn" style="width: 100%; justify-content: center; padding: 14px 24px; font-size: 15px; margin-bottom: 16px;" onclick="verifyLoginOTP()">
+          Verify &amp; Enter Workspace
+        </button>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <button class="back-btn" style="padding: 6px 14px; font-size: 12px; box-shadow: none;" onclick="backToStep1()">← Change Email</button>
+          <button class="action-btn" style="font-size: 12px; color: var(--lilac-dk);" onclick="requestLoginOTP()">Resend Code</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
 <!--  LANDING PAGE                                                             -->
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
-<div id="page-landing" class="page active">
+<div id="page-landing" class="page">
   <div class="landing-hero">
     <div class="landing-badge">AI-Powered Research Outreach</div>
     <div class="landing-brand">Cold Email Platform</div>
     <p class="landing-sub">Unified professor database manager and personalized AI cold email pipeline.</p>
   </div>
+
   <div class="landing-cards">
     <div class="landing-card" onclick="showPage('professor')" id="card-prof">
       <div class="lcard-title">Professors Directory</div>
@@ -885,8 +946,11 @@
   let currentComposeProfData = null;
 
   // ─── Page Navigation & Routing ───────────────────────────────────────────────
+  let currentUser = null;
+
   const PATH_MAP = {
     '/': 'landing',
+    '/login': 'login',
     '/professor': 'professor',
     '/professors': 'professor',
     '/email': 'email-dashboard',
@@ -895,10 +959,178 @@
     '/setup': 'email-setup',
     '/email-settings': 'email-settings',
     '/settings': 'email-settings',
-    '/login': 'email-setup',
     '/completed': 'email-completed',
     '/email-completed': 'email-completed'
   };
+
+  function getRoutePath(pageName) {
+    const map = {
+      'landing': '/',
+      'login': '/login',
+      'professor': '/professors',
+      'email-dashboard': '/email-dashboard',
+      'email-setup': '/email-setup',
+      'email-settings': '/email-settings',
+      'email-completed': '/completed'
+    };
+    return map[pageName] || '/';
+  }
+
+  function showPage(name, updateUrl = true) {
+    if (name !== 'login' && !currentUser) {
+      checkAuthSession().then(authenticated => {
+        if (!authenticated) {
+          doShowPage('login', updateUrl);
+        } else {
+          doShowPage(name, updateUrl);
+        }
+      });
+      return;
+    }
+    doShowPage(name, updateUrl);
+  }
+
+  function doShowPage(name, updateUrl = true) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    const el = document.getElementById('page-' + name);
+    if (el) el.classList.add('active');
+
+    const header = document.getElementById('app-header');
+    if (header) {
+      header.style.display = (name === 'login' || !currentUser) ? 'none' : 'flex';
+    }
+
+    if (updateUrl) {
+      const targetPath = getRoutePath(name);
+      if (window.location.pathname !== targetPath) {
+        history.pushState({ page: name }, '', targetPath);
+      }
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    if (name === 'landing') {
+      initLandingGSAP();
+    } else if (name === 'professor') {
+      loadProfWeeklyStats();
+      loadProfessors();
+    } else if (name === 'email-dashboard') {
+      loadEmailDashboard();
+    } else if (name === 'email-settings') {
+      loadSettingsPage();
+    } else if (name === 'email-completed') {
+      loadCompleted();
+    }
+  }
+
+  async function checkAuthSession() {
+    try {
+      const res = await fetch('/api/auth/me');
+      if (!res.ok) throw new Error('Unauthenticated');
+      const data = await res.json();
+      if (data.authenticated && data.user) {
+        currentUser = data.user;
+        const emailEl = document.getElementById('user-email-text');
+        if (emailEl) emailEl.textContent = currentUser.email;
+        const header = document.getElementById('app-header');
+        if (header) header.style.display = 'flex';
+        return true;
+      }
+    } catch (e) {
+      currentUser = null;
+      const header = document.getElementById('app-header');
+      if (header) header.style.display = 'none';
+      return false;
+    }
+    return false;
+  }
+
+  async function requestLoginOTP() {
+    const emailInput = document.getElementById('login-email');
+    const email = emailInput ? emailInput.value.trim() : '';
+    if (!email || !email.includes('@')) {
+      showToast('Please enter a valid email address', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('login-send-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending Code...'; }
+
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to send OTP');
+
+      document.getElementById('login-sent-email').textContent = email;
+      document.getElementById('login-step-1').style.display = 'none';
+      document.getElementById('login-step-2').style.display = 'block';
+      const otpEl = document.getElementById('login-otp');
+      if (otpEl) otpEl.focus();
+      showToast('Verification code sent to your email!');
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Send Verification Code'; }
+    }
+  }
+
+  function backToStep1() {
+    document.getElementById('login-step-2').style.display = 'none';
+    document.getElementById('login-step-1').style.display = 'block';
+    const emailInput = document.getElementById('login-email');
+    if (emailInput) emailInput.focus();
+  }
+
+  async function verifyLoginOTP() {
+    const email = document.getElementById('login-email').value.trim();
+    const otp = document.getElementById('login-otp').value.trim();
+    if (!otp || otp.length !== 6) {
+      showToast('Please enter the 6-digit verification code', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('login-verify-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Verifying...'; }
+
+    try {
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Verification failed');
+
+      currentUser = data.user;
+      const emailEl = document.getElementById('user-email-text');
+      if (emailEl) emailEl.textContent = currentUser.email;
+      showToast('Successfully logged in!');
+      document.getElementById('login-otp').value = '';
+
+      const targetPage = PATH_MAP[window.location.pathname] || 'landing';
+      doShowPage(targetPage, false);
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Verify & Enter Workspace'; }
+    }
+  }
+
+  async function logoutUser() {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {}
+    currentUser = null;
+    const header = document.getElementById('app-header');
+    if (header) header.style.display = 'none';
+    showToast('Logged out successfully');
+    doShowPage('login', false);
+  }
+
 
   function getRoutePath(pageName) {
     const map = {
@@ -1638,11 +1870,17 @@
   }
 
   // ─── Init ───────────────────────────────────────────────────────────────────
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
     const initialPath = window.location.pathname;
-    const pageName = PATH_MAP[initialPath] || 'landing';
-    showPage(pageName, false);
+    const requestedPage = PATH_MAP[initialPath] || 'landing';
+    const authenticated = await checkAuthSession();
+    if (authenticated) {
+      doShowPage(requestedPage, false);
+    } else {
+      doShowPage('login', false);
+    }
   });
+
 </script>
 </body>
 </html>

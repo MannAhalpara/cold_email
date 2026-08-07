@@ -81,3 +81,34 @@ def save_draft_gmail(
                 raise RuntimeError(f"Failed to save draft in Gmail IMAP: {data}")
 
     print(f"[SUCCESS] Email draft successfully saved inside Gmail for {receiver_email}")
+
+
+def send_otp_email(receiver_email: str, otp_code: str):
+    """Send OTP email using Gmail credentials from .env."""
+    import os
+    sender_email = os.getenv("authentication_email", "").strip()
+    raw_password = os.getenv("authentication_password", "").strip()
+    app_password = raw_password.replace(" ", "")
+
+    if not sender_email or not app_password:
+        raise RuntimeError("Gmail credentials (authentication_email/authentication_password) not set in .env")
+
+    subject = "Your Verification Code - Cold Email Platform"
+    body = (
+        f"Your verification code is: {otp_code}\n\n"
+        "This code will expire in 10 minutes.\n"
+        "If you did not request this login code, please ignore this message."
+    )
+
+    message = MIMEMultipart()
+    message["From"] = sender_email
+    message["To"] = receiver_email
+    message["Subject"] = subject
+    message.attach(MIMEText(body, "plain", "utf-8"))
+
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.starttls()
+        server.login(sender_email, app_password)
+        server.send_message(message)
+
+    print(f"[SUCCESS] OTP email sent to {receiver_email}")

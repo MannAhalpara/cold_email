@@ -3,15 +3,17 @@ import uuid
 import io
 import json
 import imaplib
+import secrets
+import hashlib
 import time as time_module
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, List
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query, UploadFile, File
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Depends, Request, Response
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -31,7 +33,7 @@ FRONTEND_DIR = ROOT_DIR / "frontend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-# Try loading email scraper/AI modules
+# Try loading email scraper/AI modules and send_email helper
 try:
     import tinyfish_scraper
     import openrouter as openrouter_module
@@ -39,6 +41,11 @@ try:
 except ImportError:
     SCRAPER_AVAILABLE = False
     print("[WARNING] tinyfish_scraper/openrouter not available.")
+
+try:
+    from send_email import send_otp_email
+except ImportError:
+    print("[WARNING] send_otp_email function not found in send_email.py.")
 
 # ─── Environment ──────────────────────────────────────────────────────────────
 load_dotenv(dotenv_path=ROOT_DIR / ".env", override=True)
@@ -48,8 +55,8 @@ if not os.getenv("DATABASE_URL"):
 # ─── FastAPI App ───────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Cold Email Platform",
-    description="Unified professor database + personalized email automation",
-    version="2.0.0"
+    description="Multi-user professor database + personalized email automation",
+    version="3.0.0"
 )
 
 app.add_middleware(
@@ -88,7 +95,23 @@ def get_db_connection():
         raise HTTPException(status_code=500, detail=f"DB connection failed: {e}")
 
 
-# ─── DB Init (startup) ────────────────────────────────────────────────────────
+# ─── Daily Cleanup ─────────────────────────────────────────────────────────────
+def cleanup_expired_auth():
+    url = os.getenv("DATABASE_URL", "").strip()
+    if not url:
+        return
+    try:
+        conn = psycopg2.connect(url)
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM otp_codes WHERE expires_at < CURRENT_TIMESTAMP;")
+            cur.execute("DELETE FROM user_sessions WHERE expires_at < CURRENT_TIMESTAMP;")
+            conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[WARNING] Auth cleanup failed: {e}")
+
+
+# ─── DB Init & Safe Migration (startup) ────────────────────────────────────────
 @app.on_event("startup")
 def on_startup():
     url = os.getenv("DATABASE_URL", "").strip()
@@ -98,7 +121,38 @@ def on_startup():
     try:
         conn = psycopg2.connect(url)
         with conn.cursor() as cur:
-            # Professors table (existing)
+            # Users table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id UUID PRIMARY KEY,
+                    email TEXT UNIQUE NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # OTP codes table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS otp_codes (
+                    id UUID PRIMARY KEY,
+                    email TEXT NOT NULL,
+                    otp_hash TEXT NOT NULL,
+                    expires_at TIMESTAMPTZ NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # User sessions table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS user_sessions (
+                    id UUID PRIMARY KEY,
+                    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    token_hash TEXT NOT NULL,
+                    expires_at TIMESTAMPTZ NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # Professors table (with user_id foreign key)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS professors (
                     id TEXT PRIMARY KEY,
@@ -114,32 +168,36 @@ def on_startup():
                     webpage_1 TEXT,
                     webpage_2 TEXT,
                     webpage_3 TEXT,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    user_id UUID REFERENCES users(id) ON DELETE CASCADE
                 );
-                ALTER TABLE professors ADD COLUMN IF NOT EXISTS created_at
-                    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE professors ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
             """)
 
-            # Email credentials (encrypted app password)
+            # Email settings (encrypted app password)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS email_settings (
                     id SERIAL PRIMARY KEY,
                     email_address TEXT NOT NULL,
                     app_password_encrypted TEXT NOT NULL,
-                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    user_id UUID REFERENCES users(id) ON DELETE CASCADE
                 );
+                ALTER TABLE email_settings ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
             """)
 
-            # Email template (with {placeholder} syntax)
+            # Email template
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS email_template (
                     id SERIAL PRIMARY KEY,
                     template_text TEXT NOT NULL,
-                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    user_id UUID REFERENCES users(id) ON DELETE CASCADE
                 );
+                ALTER TABLE email_template ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
             """)
 
-            # File attachments stored as binary in DB
+            # File attachments
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS email_attachments (
                     id TEXT PRIMARY KEY,
@@ -147,11 +205,13 @@ def on_startup():
                     file_data BYTEA NOT NULL,
                     mime_type TEXT DEFAULT 'application/octet-stream',
                     file_size INTEGER DEFAULT 0,
-                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    user_id UUID REFERENCES users(id) ON DELETE CASCADE
                 );
+                ALTER TABLE email_attachments ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
             """)
 
-            # Email send log (completed emails)
+            # Email send log
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS email_logs (
                     id TEXT PRIMARY KEY,
@@ -161,19 +221,217 @@ def on_startup():
                     subject TEXT,
                     body TEXT,
                     status TEXT DEFAULT 'draft',
-                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    user_id UUID REFERENCES users(id) ON DELETE CASCADE
                 );
+                ALTER TABLE email_logs ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+            """)
+
+            # User credentials table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS user_credentials (
+                    workspace_id UUID PRIMARY KEY,
+                    sender_email TEXT,
+                    encrypted_password TEXT,
+                    user_name TEXT,
+                    user_bio TEXT,
+                    email_template TEXT,
+                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    user_id UUID REFERENCES users(id) ON DELETE CASCADE
+                );
+                ALTER TABLE user_credentials ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
             """)
 
             conn.commit()
         conn.close()
-        print("[INFO] All DB tables initialized successfully.")
+        cleanup_expired_auth()
+        print("[INFO] Multi-user DB tables & schema migration completed successfully.")
     except Exception as e:
         print(f"[WARNING] DB init error: {e}")
 
 
+# ─── Auth Dependency ──────────────────────────────────────────────────────────
+def get_current_user(request: Request) -> dict:
+    raw_token = request.cookies.get("auth_token")
+    if not raw_token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            raw_token = auth_header[7:].strip()
+
+    if not raw_token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT u.id, u.email
+                FROM user_sessions s
+                JOIN users u ON s.user_id = u.id
+                WHERE s.token_hash = %s AND s.expires_at > CURRENT_TIMESTAMP;
+                """,
+                (token_hash,)
+            )
+            user = cur.fetchone()
+            if not user:
+                raise HTTPException(status_code=401, detail="Invalid or expired session")
+            return {"id": str(user["id"]), "email": user["email"]}
+    finally:
+        conn.close()
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
-# PROFESSOR ENDPOINTS (unchanged from original)
+# AUTHENTICATION ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class SendOTPIn(BaseModel):
+    email: str
+
+
+class VerifyOTPIn(BaseModel):
+    email: str
+    otp: str
+
+
+@app.post("/api/auth/send-otp")
+def request_otp(payload: SendOTPIn):
+    email = payload.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Invalid email address.")
+
+    otp = f"{secrets.randbelow(1000000):06d}"
+    otp_hash = hashlib.sha256(otp.encode("utf-8")).hexdigest()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+    otp_id = str(uuid.uuid4())
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM otp_codes WHERE email = %s;", (email,))
+            cur.execute(
+                """
+                INSERT INTO otp_codes (id, email, otp_hash, expires_at)
+                VALUES (%s, %s, %s, %s);
+                """,
+                (otp_id, email, otp_hash, expires_at),
+            )
+            conn.commit()
+
+        send_otp_email(email, otp)
+        cleanup_expired_auth()
+        return {"message": f"OTP verification code sent to {email}"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to send OTP: {e}")
+    finally:
+        conn.close()
+
+
+@app.post("/api/auth/verify-otp")
+def verify_otp(payload: VerifyOTPIn, request: Request, response: Response):
+    email = payload.email.strip().lower()
+    otp = payload.otp.strip()
+    if not email or not otp:
+        raise HTTPException(status_code=400, detail="Email and OTP are required.")
+
+    otp_hash = hashlib.sha256(otp.encode("utf-8")).hexdigest()
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id FROM otp_codes
+                WHERE email = %s AND otp_hash = %s AND expires_at > CURRENT_TIMESTAMP;
+                """,
+                (email, otp_hash),
+            )
+            otp_row = cur.fetchone()
+            if not otp_row:
+                raise HTTPException(status_code=400, detail="Invalid or expired OTP code.")
+
+            cur.execute("DELETE FROM otp_codes WHERE email = %s;", (email,))
+
+            cur.execute("SELECT id, email FROM users WHERE email = %s;", (email,))
+            user_row = cur.fetchone()
+            if user_row:
+                user_id = str(user_row["id"])
+            else:
+                user_id = str(uuid.uuid4())
+                cur.execute(
+                    "INSERT INTO users (id, email) VALUES (%s, %s) RETURNING *;",
+                    (user_id, email),
+                )
+
+            raw_token = secrets.token_hex(32)
+            token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+            session_id = str(uuid.uuid4())
+            expires_at = datetime.now(timezone.utc) + timedelta(days=60)
+
+            cur.execute(
+                """
+                INSERT INTO user_sessions (id, user_id, token_hash, expires_at)
+                VALUES (%s, %s, %s, %s);
+                """,
+                (session_id, user_id, token_hash, expires_at),
+            )
+            conn.commit()
+
+        is_secure = request.url.scheme == "https"
+        response.set_cookie(
+            key="auth_token",
+            value=raw_token,
+            httponly=True,
+            samesite="lax",
+            secure=is_secure,
+            max_age=60 * 86400,
+            path="/"
+        )
+        return {"success": True, "user": {"id": user_id, "email": email}}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Verification failed: {e}")
+    finally:
+        conn.close()
+
+
+@app.get("/api/auth/me")
+def get_current_user_profile(current_user: dict = Depends(get_current_user)):
+    return {"authenticated": True, "user": current_user}
+
+
+@app.post("/api/auth/logout")
+def logout(request: Request, response: Response):
+    raw_token = request.cookies.get("auth_token")
+    if not raw_token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            raw_token = auth_header[7:].strip()
+
+    if raw_token:
+        token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM user_sessions WHERE token_hash = %s;", (token_hash,))
+                conn.commit()
+        except Exception:
+            pass
+        finally:
+            conn.close()
+
+    response.delete_cookie(key="auth_token", path="/")
+    return {"success": True}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PROFESSOR ENDPOINTS (Scoped by user_id)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class ProfessorCreate(BaseModel):
@@ -221,7 +479,7 @@ def health_check():
 
 
 @app.get("/api/weekly-stats")
-def get_weekly_stats():
+def get_weekly_stats(current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         now = datetime.now()
@@ -236,8 +494,8 @@ def get_weekly_stats():
                 d_start = start_of_week + timedelta(days=i)
                 d_end = d_start + timedelta(days=1)
                 cur.execute(
-                    "SELECT COUNT(*) as cnt FROM professors WHERE created_at >= %s AND created_at < %s;",
-                    (d_start, d_end),
+                    "SELECT COUNT(*) as cnt FROM professors WHERE user_id = %s AND created_at >= %s AND created_at < %s;",
+                    (current_user["id"], d_start, d_end),
                 )
                 res = cur.fetchone()
                 days_data.append({
@@ -251,15 +509,15 @@ def get_weekly_stats():
 
 
 @app.get("/api/professors/export")
-def export_professors_excel():
+def export_professors_excel(current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT id, professor_name, email, university, department, designation,
                        country, research_area, lab_name, lab_link, webpage_1, webpage_2, webpage_3, created_at
-                FROM professors ORDER BY professor_name ASC;
-            """)
+                FROM professors WHERE user_id = %s ORDER BY professor_name ASC;
+            """, (current_user["id"],))
             rows = cur.fetchall()
 
         wb = openpyxl.Workbook()
@@ -313,7 +571,7 @@ def export_professors_excel():
 
 
 @app.get("/api/professors")
-def list_professors(q: Optional[str] = None):
+def list_professors(q: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
@@ -321,24 +579,26 @@ def list_professors(q: Optional[str] = None):
                 s = f"%{q.strip()}%"
                 cur.execute(
                     """SELECT * FROM professors
-                       WHERE professor_name ILIKE %s OR email ILIKE %s OR university ILIKE %s
+                       WHERE user_id = %s AND (
+                          professor_name ILIKE %s OR email ILIKE %s OR university ILIKE %s
                           OR department ILIKE %s OR research_area ILIKE %s OR country ILIKE %s OR designation ILIKE %s
+                       )
                        ORDER BY professor_name ASC;""",
-                    (s, s, s, s, s, s, s),
+                    (current_user["id"], s, s, s, s, s, s, s),
                 )
             else:
-                cur.execute("SELECT * FROM professors ORDER BY professor_name ASC;")
+                cur.execute("SELECT * FROM professors WHERE user_id = %s ORDER BY professor_name ASC;", (current_user["id"],))
             return [dict(r) for r in cur.fetchall()]
     finally:
         conn.close()
 
 
 @app.get("/api/professors/{prof_id}")
-def get_professor(prof_id: str):
+def get_professor(prof_id: str, current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM professors WHERE id = %s;", (prof_id,))
+            cur.execute("SELECT * FROM professors WHERE id = %s AND user_id = %s;", (prof_id, current_user["id"]))
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="Professor not found")
@@ -348,7 +608,7 @@ def get_professor(prof_id: str):
 
 
 @app.post("/api/professors", status_code=201)
-def create_professor(prof: ProfessorCreate):
+def create_professor(prof: ProfessorCreate, current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         prof_id = f"prof_{uuid.uuid4().hex[:8]}"
@@ -356,8 +616,8 @@ def create_professor(prof: ProfessorCreate):
             cur.execute(
                 """INSERT INTO professors
                    (id, professor_name, email, university, department, designation,
-                    country, research_area, lab_name, lab_link, webpage_1, webpage_2, webpage_3)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *;""",
+                    country, research_area, lab_name, lab_link, webpage_1, webpage_2, webpage_3, user_id)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *;""",
                 (
                     prof_id,
                     prof.professor_name.strip(),
@@ -372,6 +632,7 @@ def create_professor(prof: ProfessorCreate):
                     prof.webpage_1.strip(),
                     prof.webpage_2.strip() if prof.webpage_2 else "",
                     prof.webpage_3.strip() if prof.webpage_3 else "",
+                    current_user["id"]
                 ),
             )
             new_row = cur.fetchone()
@@ -388,11 +649,11 @@ def create_professor(prof: ProfessorCreate):
 
 
 @app.put("/api/professors/{prof_id}")
-def update_professor(prof_id: str, prof: ProfessorUpdate):
+def update_professor(prof_id: str, prof: ProfessorUpdate, current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM professors WHERE id = %s;", (prof_id,))
+            cur.execute("SELECT * FROM professors WHERE id = %s AND user_id = %s;", (prof_id, current_user["id"]))
             existing = cur.fetchone()
             if not existing:
                 raise HTTPException(status_code=404, detail="Professor not found")
@@ -403,9 +664,9 @@ def update_professor(prof_id: str, prof: ProfessorUpdate):
                     values.append(val.strip() if isinstance(val, str) else val)
             if not updates:
                 return dict(existing)
-            values.append(prof_id)
+            values.extend([prof_id, current_user["id"]])
             cur.execute(
-                f"UPDATE professors SET {', '.join(updates)} WHERE id = %s RETURNING *;",
+                f"UPDATE professors SET {', '.join(updates)} WHERE id = %s AND user_id = %s RETURNING *;",
                 tuple(values),
             )
             updated_row = cur.fetchone()
@@ -422,14 +683,14 @@ def update_professor(prof_id: str, prof: ProfessorUpdate):
 
 
 @app.delete("/api/professors/{prof_id}")
-def delete_professor(prof_id: str):
+def delete_professor(prof_id: str, current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT id FROM professors WHERE id = %s;", (prof_id,))
+            cur.execute("SELECT id FROM professors WHERE id = %s AND user_id = %s;", (prof_id, current_user["id"]))
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="Professor not found")
-            cur.execute("DELETE FROM professors WHERE id = %s;", (prof_id,))
+            cur.execute("DELETE FROM professors WHERE id = %s AND user_id = %s;", (prof_id, current_user["id"]))
             conn.commit()
             return {"message": f"Professor '{prof_id}' deleted successfully."}
     except HTTPException:
@@ -443,7 +704,7 @@ def delete_professor(prof_id: str):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# EMAIL SETTINGS
+# EMAIL SETTINGS (Scoped by user_id)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class EmailSettingsIn(BaseModel):
@@ -452,12 +713,13 @@ class EmailSettingsIn(BaseModel):
 
 
 @app.get("/api/email-settings")
-def get_email_settings():
+def get_email_settings(current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, email_address, updated_at FROM email_settings ORDER BY id DESC LIMIT 1;"
+                "SELECT id, email_address, updated_at FROM email_settings WHERE user_id = %s ORDER BY id DESC LIMIT 1;",
+                (current_user["id"],)
             )
             row = cur.fetchone()
             if not row:
@@ -472,22 +734,22 @@ def get_email_settings():
 
 
 @app.post("/api/email-settings")
-def save_email_settings(settings: EmailSettingsIn):
+def save_email_settings(settings: EmailSettingsIn, current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         encrypted = encrypt_text(settings.app_password)
         with conn.cursor() as cur:
-            cur.execute("SELECT id FROM email_settings LIMIT 1;")
+            cur.execute("SELECT id FROM email_settings WHERE user_id = %s LIMIT 1;", (current_user["id"],))
             existing = cur.fetchone()
             if existing:
                 cur.execute(
-                    "UPDATE email_settings SET email_address=%s, app_password_encrypted=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s;",
-                    (settings.email_address, encrypted, existing["id"]),
+                    "UPDATE email_settings SET email_address=%s, app_password_encrypted=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s AND user_id=%s;",
+                    (settings.email_address, encrypted, existing["id"], current_user["id"]),
                 )
             else:
                 cur.execute(
-                    "INSERT INTO email_settings (email_address, app_password_encrypted) VALUES (%s, %s);",
-                    (settings.email_address, encrypted),
+                    "INSERT INTO email_settings (email_address, app_password_encrypted, user_id) VALUES (%s, %s, %s);",
+                    (settings.email_address, encrypted, current_user["id"]),
                 )
             conn.commit()
         return {"success": True, "email_address": settings.email_address}
@@ -499,7 +761,7 @@ def save_email_settings(settings: EmailSettingsIn):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# EMAIL TEMPLATE
+# EMAIL TEMPLATE (Scoped by user_id)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 DEFAULT_TEMPLATE = (
@@ -530,11 +792,11 @@ class EmailTemplateIn(BaseModel):
 
 
 @app.get("/api/email-template")
-def get_email_template():
+def get_email_template(current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT template_text FROM email_template ORDER BY id DESC LIMIT 1;")
+            cur.execute("SELECT template_text FROM email_template WHERE user_id = %s ORDER BY id DESC LIMIT 1;", (current_user["id"],))
             row = cur.fetchone()
             return {"template_text": row["template_text"] if row else DEFAULT_TEMPLATE}
     finally:
@@ -542,21 +804,21 @@ def get_email_template():
 
 
 @app.post("/api/email-template")
-def save_email_template(tmpl: EmailTemplateIn):
+def save_email_template(tmpl: EmailTemplateIn, current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT id FROM email_template LIMIT 1;")
+            cur.execute("SELECT id FROM email_template WHERE user_id = %s LIMIT 1;", (current_user["id"],))
             existing = cur.fetchone()
             if existing:
                 cur.execute(
-                    "UPDATE email_template SET template_text=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s;",
-                    (tmpl.template_text, existing["id"]),
+                    "UPDATE email_template SET template_text=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s AND user_id=%s;",
+                    (tmpl.template_text, existing["id"], current_user["id"]),
                 )
             else:
                 cur.execute(
-                    "INSERT INTO email_template (template_text) VALUES (%s);",
-                    (tmpl.template_text,),
+                    "INSERT INTO email_template (template_text, user_id) VALUES (%s, %s);",
+                    (tmpl.template_text, current_user["id"]),
                 )
             conn.commit()
         return {"success": True}
@@ -568,16 +830,17 @@ def save_email_template(tmpl: EmailTemplateIn):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ATTACHMENTS
+# ATTACHMENTS (Scoped by user_id)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.get("/api/attachments")
-def list_attachments():
+def list_attachments(current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, filename, mime_type, file_size, created_at FROM email_attachments ORDER BY created_at DESC;"
+                "SELECT id, filename, mime_type, file_size, created_at FROM email_attachments WHERE user_id = %s ORDER BY created_at DESC;",
+                (current_user["id"],)
             )
             rows = cur.fetchall()
             return [
@@ -595,15 +858,15 @@ def list_attachments():
 
 
 @app.post("/api/attachments", status_code=201)
-async def upload_attachment(file: UploadFile = File(...)):
+async def upload_attachment(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
     content = await file.read()
     att_id = f"att_{uuid.uuid4().hex[:8]}"
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO email_attachments (id, filename, file_data, mime_type, file_size) VALUES (%s,%s,%s,%s,%s);",
-                (att_id, file.filename, psycopg2.Binary(content), file.content_type or "application/octet-stream", len(content)),
+                "INSERT INTO email_attachments (id, filename, file_data, mime_type, file_size, user_id) VALUES (%s,%s,%s,%s,%s,%s);",
+                (att_id, file.filename, psycopg2.Binary(content), file.content_type or "application/octet-stream", len(content), current_user["id"]),
             )
             conn.commit()
         return {"id": att_id, "filename": file.filename, "file_size": len(content)}
@@ -615,11 +878,11 @@ async def upload_attachment(file: UploadFile = File(...)):
 
 
 @app.delete("/api/attachments/{att_id}")
-def delete_attachment(att_id: str):
+def delete_attachment(att_id: str, current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM email_attachments WHERE id = %s;", (att_id,))
+            cur.execute("DELETE FROM email_attachments WHERE id = %s AND user_id = %s;", (att_id, current_user["id"]))
             conn.commit()
         return {"success": True}
     except Exception as e:
@@ -630,17 +893,17 @@ def delete_attachment(att_id: str):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# EMAIL STATS & LOGS
+# EMAIL STATS & LOGS (Scoped by user_id)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.get("/api/email-stats")
-def get_email_stats():
+def get_email_stats(current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) as cnt FROM professors;")
+            cur.execute("SELECT COUNT(*) as cnt FROM professors WHERE user_id = %s;", (current_user["id"],))
             total_prof = cur.fetchone()["cnt"]
-            cur.execute("SELECT COUNT(DISTINCT professor_id) as cnt FROM email_logs WHERE professor_id IS NOT NULL;")
+            cur.execute("SELECT COUNT(DISTINCT professor_id) as cnt FROM email_logs WHERE user_id = %s AND professor_id IS NOT NULL;", (current_user["id"],))
             emails_sent = cur.fetchone()["cnt"]
         return {"total_professors": total_prof, "emails_sent": emails_sent}
     finally:
@@ -648,12 +911,13 @@ def get_email_stats():
 
 
 @app.get("/api/email-logs")
-def get_email_logs():
+def get_email_logs(current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, professor_id, professor_name, university, subject, status, created_at FROM email_logs ORDER BY created_at DESC;"
+                "SELECT id, professor_id, professor_name, university, subject, status, created_at FROM email_logs WHERE user_id = %s ORDER BY created_at DESC;",
+                (current_user["id"],)
             )
             return [dict(r) for r in cur.fetchall()]
     finally:
@@ -661,7 +925,7 @@ def get_email_logs():
 
 
 @app.get("/api/email-weekly-stats")
-def get_email_weekly_stats():
+def get_email_weekly_stats(current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
         now = datetime.now()
@@ -676,8 +940,8 @@ def get_email_weekly_stats():
                 d_start = start_of_week + timedelta(days=i)
                 d_end = d_start + timedelta(days=1)
                 cur.execute(
-                    "SELECT COUNT(*) as cnt FROM email_logs WHERE created_at >= %s AND created_at < %s;",
-                    (d_start, d_end),
+                    "SELECT COUNT(*) as cnt FROM email_logs WHERE user_id = %s AND created_at >= %s AND created_at < %s;",
+                    (current_user["id"], d_start, d_end),
                 )
                 res = cur.fetchone()
                 days_data.append({
@@ -691,19 +955,19 @@ def get_email_weekly_stats():
 
 
 @app.get("/api/emailed-professors")
-def get_emailed_professor_ids():
-    """Returns list of professor_ids that have been emailed (for dashboard status)."""
+def get_emailed_professor_ids(current_user: dict = Depends(get_current_user)):
+    """Returns list of professor_ids that have been emailed for current user."""
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT professor_id FROM email_logs WHERE professor_id IS NOT NULL;")
+            cur.execute("SELECT DISTINCT professor_id FROM email_logs WHERE user_id = %s AND professor_id IS NOT NULL;", (current_user["id"],))
             return [r["professor_id"] for r in cur.fetchall()]
     finally:
         conn.close()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# EMAIL GENERATION ENGINE (SSE)
+# EMAIL GENERATION ENGINE (SSE Scoped by user_id)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def evt(data: dict) -> str:
@@ -741,7 +1005,6 @@ def _safe_format(template_text: str, **kwargs) -> str:
 
     formatted = template_text
 
-    # If template has "Dear {last_name}" without a title in front, turn it into "Dear {salutation}"
     if "Dear {last_name}" in formatted and salutation:
         formatted = formatted.replace("Dear {last_name}", f"Dear {salutation}")
 
@@ -760,7 +1023,7 @@ def _safe_format(template_text: str, **kwargs) -> str:
     return formatted
 
 
-def email_sse_generator(prof_id: str):
+def email_sse_generator(prof_id: str, user_id: str):
     db_url = os.getenv("DATABASE_URL", "").strip()
     if not db_url:
         yield evt({"step": "error", "message": "DATABASE_URL not configured."})
@@ -771,7 +1034,7 @@ def email_sse_generator(prof_id: str):
     try:
         conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM professors WHERE id = %s;", (prof_id,))
+            cur.execute("SELECT * FROM professors WHERE id = %s AND user_id = %s;", (prof_id, user_id))
             row = cur.fetchone()
             if row:
                 prof = dict(row)
@@ -808,13 +1071,13 @@ def email_sse_generator(prof_id: str):
     try:
         conn2 = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
         with conn2.cursor() as cur:
-            cur.execute("SELECT template_text FROM email_template ORDER BY id DESC LIMIT 1;")
+            cur.execute("SELECT template_text FROM email_template WHERE user_id = %s ORDER BY id DESC LIMIT 1;", (user_id,))
             tmpl_row = cur.fetchone()
         conn2.close()
         if tmpl_row and tmpl_row.get("template_text"):
             template = tmpl_row["template_text"]
     except Exception:
-        pass  # Fall back to DEFAULT_TEMPLATE
+        pass
 
     # 2b: Generate personalized paragraph
     generic_para = (
@@ -864,7 +1127,8 @@ def email_sse_generator(prof_id: str):
         conn3 = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
         with conn3.cursor() as cur:
             cur.execute(
-                "SELECT id, filename, mime_type, file_size FROM email_attachments ORDER BY created_at DESC;"
+                "SELECT id, filename, mime_type, file_size FROM email_attachments WHERE user_id = %s ORDER BY created_at DESC;",
+                (user_id,)
             )
             attachments = [
                 {"id": r["id"], "filename": r["filename"], "mime_type": r["mime_type"], "file_size": r["file_size"]}
@@ -890,9 +1154,9 @@ def email_sse_generator(prof_id: str):
 
 
 @app.post("/api/send-email/{prof_id}")
-async def send_email_stream(prof_id: str):
+async def send_email_stream(prof_id: str, current_user: dict = Depends(get_current_user)):
     return StreamingResponse(
-        email_sse_generator(prof_id),
+        email_sse_generator(prof_id, current_user["id"]),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -903,7 +1167,7 @@ async def send_email_stream(prof_id: str):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SAVE DRAFT TO GMAIL
+# SAVE DRAFT TO GMAIL (Scoped by user_id)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class SaveDraftIn(BaseModel):
@@ -916,13 +1180,13 @@ class SaveDraftIn(BaseModel):
 
 
 @app.post("/api/save-draft")
-def save_draft(payload: SaveDraftIn):
+def save_draft(payload: SaveDraftIn, current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     try:
-        # Get credentials
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT email_address, app_password_encrypted FROM email_settings ORDER BY id DESC LIMIT 1;"
+                "SELECT email_address, app_password_encrypted FROM email_settings WHERE user_id = %s ORDER BY id DESC LIMIT 1;",
+                (current_user["id"],)
             )
             creds = cur.fetchone()
             if not creds:
@@ -931,13 +1195,12 @@ def save_draft(payload: SaveDraftIn):
             sender_email = creds["email_address"]
             app_password = decrypt_text(creds["app_password_encrypted"])
 
-            # Fetch attachment binaries
             cur.execute(
-                "SELECT filename, file_data, mime_type FROM email_attachments ORDER BY created_at DESC;"
+                "SELECT filename, file_data, mime_type FROM email_attachments WHERE user_id = %s ORDER BY created_at DESC;",
+                (current_user["id"],)
             )
             attachments = cur.fetchall()
 
-        # Build MIME message
         msg = MIMEMultipart()
         msg["From"] = sender_email
         msg["To"] = payload.to_email
@@ -949,7 +1212,6 @@ def save_draft(payload: SaveDraftIn):
             part["Content-Disposition"] = f'attachment; filename="{att["filename"]}"'
             msg.attach(part)
 
-        # Save to Gmail Drafts via IMAP
         now_imap = imaplib.Time2Internaldate(time_module.time())
         with imaplib.IMAP4_SSL("imap.gmail.com", 993) as imap:
             imap.login(sender_email, app_password)
@@ -959,13 +1221,12 @@ def save_draft(payload: SaveDraftIn):
                 if res != "OK":
                     raise RuntimeError(f"IMAP append failed: {data}")
 
-        # Log the sent draft
         log_id = f"log_{uuid.uuid4().hex[:8]}"
         with conn.cursor() as cur:
             cur.execute(
-                """INSERT INTO email_logs (id, professor_id, professor_name, university, subject, body, status)
-                   VALUES (%s,%s,%s,%s,%s,%s,'draft');""",
-                (log_id, payload.professor_id, payload.professor_name, payload.university, payload.subject, payload.body),
+                """INSERT INTO email_logs (id, professor_id, professor_name, university, subject, body, status, user_id)
+                   VALUES (%s,%s,%s,%s,%s,%s,'draft',%s);""",
+                (log_id, payload.professor_id, payload.professor_name, payload.university, payload.subject, payload.body, current_user["id"]),
             )
             conn.commit()
 
